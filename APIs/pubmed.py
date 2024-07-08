@@ -20,6 +20,8 @@ class PubMedAPI:
         return results
 
     def query(self, query, max_results=10):
+        print(f"PubMedAPI.query called with: {query}, {max_results}")
+
         id_list = self.search_pubmed(query, max_results)
         papers = []
         for paper in self.fetch_details(id_list)["PubmedArticle"]:

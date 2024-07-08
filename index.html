@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agent Chat</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        .chat-container {
+            width: 80%;
+            max-width: 800px;
+        }
+        #chat-box {
+            height: 400px;
+            border: 1px solid #ccc;
+            overflow-y: scroll;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        #user-input {
+            width: calc(100% - 22px);
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        #send-button {
+            width: 100%;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div id="chat-box"></div>
+        <input type="text" id="user-input" placeholder="Type your message here...">
+        <button id="send-button" onclick="sendMessage()">Send</button>
+    </div>
+
+    <script>
+    function sendMessage() {
+        var message = $("#user-input").val();
+        if (message.trim() !== "") {
+            $("#chat-box").append("<p><strong>You:</strong> " + message + "</p>");
+            $("#user-input").val("");
+            
+            $.ajax({
+                url: 'http://127.0.0.1:5000/chat',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({message: message}),
+                success: function(data) {
+                    if (data.conversation) {
+                        data.conversation.forEach(function(msg) {
+                            var formattedMessage = marked.parse(msg.message);
+                            $("#chat-box").append("<p><strong>" + msg.speaker + ":</strong> " + formattedMessage + "</p>");
+                        });
+                    } else if (data.error) {
+                        $("#chat-box").append("<p><strong>Error:</strong> " + data.error + "</p>");
+                    }
+                    $("#chat-box").scrollTop($("#chat-box")[0].scrollHeight);
+                },
+                error: function(jqXHR, textStatus, errorThrown) {
+                    console.error("Error:", textStatus, errorThrown);
+                    $("#chat-box").append("<p><strong>Error:</strong> Failed to get response from server.</p>");
+                }
+            });
+        }
+    }
+
+    $(document).ready(function() {
+        $("#user-input").keypress(function(e) {
+            if(e.which == 13) {
+                sendMessage();
+            }
+        });
+    });
+    </script>
+</body>
+</html>
