@@ -16,11 +16,11 @@
             font-family: Arial, sans-serif;
         }
         .chat-container {
-            width: 80%;
-            max-width: 800px;
+            width: 95%;
+            max-width: 1200px;
         }
         #chat-box {
-            height: 400px;
+            height: 600px;
             border: 1px solid #ccc;
             overflow-y: scroll;
             padding: 10px;
@@ -35,6 +35,9 @@
             width: 100%;
             padding: 10px;
         }
+        .user-message {
+            color: blue;
+        }
     </style>
 </head>
 <body>
@@ -48,7 +51,7 @@
     function sendMessage() {
         var message = $("#user-input").val();
         if (message.trim() !== "") {
-            $("#chat-box").append("<p><strong>You:</strong> " + message + "</p>");
+            $("#chat-box").append("<p class='user-message'><strong>You:</strong> " + message + "</p>");
             $("#user-input").val("");
             
             $.ajax({
@@ -57,22 +60,45 @@
                 contentType: 'application/json',
                 data: JSON.stringify({message: message}),
                 success: function(data) {
-                    if (data.conversation) {
-                        data.conversation.forEach(function(msg) {
-                            var formattedMessage = marked.parse(msg.message);
-                            $("#chat-box").append("<p><strong>" + msg.speaker + ":</strong> " + formattedMessage + "</p>");
-                        });
-                    } else if (data.error) {
-                        $("#chat-box").append("<p><strong>Error:</strong> " + data.error + "</p>");
-                    }
-                    $("#chat-box").scrollTop($("#chat-box")[0].scrollHeight);
+                    displayConversation(data);
                 },
                 error: function(jqXHR, textStatus, errorThrown) {
                     console.error("Error:", textStatus, errorThrown);
                     $("#chat-box").append("<p><strong>Error:</strong> Failed to get response from server.</p>");
+                    // Try to parse the response and display it anyway
+                    try {
+                        var data = JSON.parse(jqXHR.responseText);
+                        displayConversation(data);
+                    } catch (e) {
+                        console.error("Failed to parse error response:", e);
+                    }
                 }
             });
         }
+    }
+
+    function displayConversation(data) {
+        if (data.conversation) {
+            data.conversation.forEach(function(msg) {
+                var formattedMessage = marked.parse(msg.message);
+                formattedMessage = makeLinksClickable(formattedMessage);
+                if (msg.speaker === "You") {
+                    $("#chat-box").append("<p class='user-message'><strong>" + msg.speaker + ":</strong> " + formattedMessage + "</p>");
+                } else {
+                    $("#chat-box").append("<p><strong>" + msg.speaker + ":</strong> " + formattedMessage + "</p>");
+                }
+            });
+        } else if (data.error) {
+            $("#chat-box").append("<p><strong>Error:</strong> " + data.error + "</p>");
+        }
+        $("#chat-box").scrollTop($("#chat-box")[0].scrollHeight);
+    }
+
+    function makeLinksClickable(text) {
+        var urlRegex = /(https?:\/\/[^\s]+)/g;
+        return text.replace(urlRegex, function(url) {
+            return '<a href="' + url + '" target="_blank">' + url + '</a>';
+        });
     }
 
     $(document).ready(function() {

@@ -28,7 +28,113 @@ for config in config_list:
 
 pubmed_api =PubMedAPI(email="sanazkazemi@hotmail.com") # for enterez to contact you if neccessary
 
-def use_pubmed_api(query, max_results=10):
+
+gpt3_config = {
+    "cache_seed": False,  # change the cache_seed for different trials
+    "temperature": 0,
+    "config_list": config_list,
+    "timeout": 120,
+}
+
+initialiser = autogen.UserProxyAgent(
+    name="Initialiser",
+    human_input_mode="NEVER",
+)
+
+Moderator = autogen.AssistantAgent(
+    name="Moderator",
+    llm_config=config_list[0],
+    human_input_mode="",
+    system_message="""You are 'Moderator', overseeing the drug discovery process. 
+                    ensure all aspects of the prompt are addressed, and synthesize a comprehensive final report. You will:
+                    Your role is to coordinate the discussion between specialized agents,  ensuring all aspects of the prompt are addressed.
+
+                    1. Analyze the given prompt and break it down into subtasks for each agent.
+                    2. Assign tasks to appropriate agents and manage their interactions.
+                    3. Ensure all required sections (scientific rationale, target assessment strategy, and safety assessment) are thoroughly covered.
+                    4. Compile and summarize the inputs from all agents into a cohesive final report.
+                    5. Ensure all claims are properly referenced and the report follows the specified format.
+                    6. Present the final output, including a complete list of references."""
+                    )
+
+scientific_rational = autogen.AssistantAgent(
+    name="SAR",
+    llm_config=config_list[0],
+
+    system_message="""You are 'SAR', an expert in target discovery and clinical target rationale. Your role is to develop a comprehensive scientific rationale for the given target in the specified disease. 
+
+    
+    You will:
+                    Formulate a working hypothesis based on the provided information.
+                    Analyze the clinical target rationale, focusing on human biology evidence.
+                    Evaluate the relevance of the target to the disease and its physiological processes.
+                    Assess genetic links, phenotypes, and clinical evidence related to the target.
+                    Identify challenges in the drug discovery program for this target.
+                    Suggest alternative indications for target modulators.
+                    Use the use_pubmed_api function TWICE to find and cite relevant scientific literature.
+                    Ensure your response covers all points requested in the prompt, with a minimum of 2000 words for the main rationale.""",)
+
+
+safety_officer = autogen.AssistantAgent(
+    name="SAFEA",
+    system_message="""You are 'SAFEA' an expert in safety when it comes to target discovery. Your role is to conduct a thorough safety assessment of the proposed drug target. You will:
+
+                    Evaluate target expression patterns and tissue specificity.
+                    Analyze potential species differences between humans and animal models.
+                    Assess on-target and off-target safety concerns, including peripheral risks.
+                    Evaluate the risk of exaggerated pharmacology and immunogenicity.
+                    Consider the impact of genetic polymorphisms on target function.
+                    Provide a comprehensive safety profile addressing all points in the prompt's safety assessment section""",
+    llm_config=config_list[0],
+)
+target_assessment = autogen.AssistantAgent(
+    name="TAG",
+    llm_config=config_list[0],
+    system_message="""You are 'TAG' a specialist in assessing targets for drug discovery. Your role is to develop and outline a comprehensive 1-year Target Assessment (TA) to Lead Identification (LI) plan for the proposed drug target. Your responsibilities include:
+
+                    Analyze and highlight key inflection points that will inform the project's feasibility.
+                    Assess the status of in-vitro platforms and translational in vivo models.
+                    Identify and describe what needs to be established in terms of platforms and models.
+                    Elaborate on the target's tractability and major challenges for advancement in a drug discovery portfolio.
+                    Discuss and propose potential biomarkers and readouts for efficacy and target engagement.
+                    Outline a high-level TA-LI plan, focusing on critical milestones and decision points.
+                    Evaluate the commercial viability and desirability of the proposed mode of action on the target in a clinical setting.
+                    Assess the advantages and disadvantages of different therapeutic modalities for tackling the target.
+                    Use the use_pubmed_api function to find relevant target assessment data and literature.
+                    Provide a concise yet comprehensive target assessment strategy addressing all points in the prompt's target assessment section, within a 500-word limit.
+
+                    Your assessment should be evidence-based, drawing from the latest research and industry best practices in target assessment. 
+                    
+                    Be prepared to interact with other specialists to ensure a well-rounded evaluation of the target""",
+                    )
+
+    # literature_agent = autogen.AssistantAgent(
+    #     name="Literature_Agent",
+    #     llm_config=config_list[0],
+    #     system_message="""You provide relevant literature and references related to the prompt. 
+    #                     You summarize the key points and provide a list of references.Use the use_pubmed_api function
+    #                     to find relevant scientific literature when needed.""",)
+
+
+
+
+agent_list=[scientific_rational, safety_officer, target_assessment]
+
+    
+groupchat = GroupChat(
+    agents=[initialiser, Moderator, scientific_rational, safety_officer, target_assessment],
+    messages=[],
+    max_round=12,
+    speaker_selection_method="round_robin",
+    send_introductions=True,
+)
+
+manager = autogen.GroupChatManager(
+    groupchat=groupchat,
+    llm_config=gpt3_config,)
+
+
+def use_pubmed_api(query: str , max_results=10):
     """
         Search PubMed for scientific literature related to the given query.
 
@@ -85,143 +191,42 @@ def use_pubmed_api(query, max_results=10):
     print("PubMed API call completed")
     
     return result
-    
 
-temp_dir = tempfile.TemporaryDirectory()
-executor = LocalCommandLineCodeExecutor(
-    timeout=10,  # Timeout for each code execution in seconds.
-    work_dir=temp_dir.name,  # Use the temporary directory to store the code files.
-)
+# havent done it for moderator as it interferes with other specialist agents by suggesting tool call.
+# A few options - 
 
-gpt3_config = {
-    "cache_seed": False,  # change the cache_seed for different trials
-    "temperature": 0,
-    "config_list": config_list,
-    "timeout": 120,
-}
-
-initialiser = autogen.UserProxyAgent(
-    name="Initialiser",
-    human_input_mode="ALWAYS",
-)
-
-Moderator = autogen.AssistantAgent(
-    name="Moderator",
-    llm_config=config_list[0],
-    human_input_mode="TERMINATE",
-    system_message="""You are the Moderator overseeing the drug discovery process. Your role is to coordinate the discussion between specialized agents, ensure all aspects of the prompt are addressed, and synthesize a comprehensive final report. You will:
-
-                    1. Analyze the given prompt and break it down into subtasks for each agent.
-                    2. Assign tasks to appropriate agents and manage their interactions.
-                    3. Ensure all required sections (scientific rationale, target assessment strategy, and safety assessment) are thoroughly covered.
-                    4. Compile and summarize the inputs from all agents into a cohesive final report.
-                    5. Ensure all claims are properly referenced and the report follows the specified format.
-                    6. Present the final output, including a complete list of references."""
-                    )
-
-scientific_rational = autogen.AssistantAgent(
-    name="Scientific_Rational",
-    llm_config=config_list[0],
-    system_message="""You are an expert in drug discovery and clinical target rationale. Your role is to develop a comprehensive scientific rationale for the given target in the specified disease. You will:
-                    Formulate a working hypothesis based on the provided information.
-                    Analyze the clinical target rationale, focusing on human biology evidence.
-                    Evaluate the relevance of the target to the disease and its physiological processes.
-                    Assess genetic links, phenotypes, and clinical evidence related to the target.
-                    Identify challenges in the drug discovery program for this target.
-                    Suggest alternative indications for target modulators.
-                    Use the use_pubmed_api function to find and cite relevant scientific literature.
-                    Ensure your response covers all points requested in the prompt, with a minimum of 2000 words for the main rationale.""",)
-
-
-safety_officer = autogen.AssistantAgent(
-    name="Safety_Assistant",
-    system_message="""You are a safety expert in drug discovery. Your role is to conduct a thorough safety assessment of the proposed drug target. You will:
-
-                    Evaluate target expression patterns and tissue specificity.
-                    Analyze potential species differences between humans and animal models.
-                    Assess on-target and off-target safety concerns, including peripheral risks.
-                    Evaluate the risk of exaggerated pharmacology and immunogenicity.
-                    Consider the impact of genetic polymorphisms on target function.
-                    Use the use_pubmed_api function to find relevant safety data and literature.
-                    Provide a comprehensive safety profile addressing all points in the prompt's safety assessment section.""",
-    llm_config=config_list[0],
-)
-target_assessment = autogen.AssistantAgent(
-    name="Target_Assessment",
-    llm_config=config_list[0],
-    system_message="""You are a safety expert in drug discovery. Your role is to conduct a thorough safety assessment of the proposed drug target. You will:
-                    Evaluate target expression patterns and tissue specificity.
-                    Analyze potential species differences between humans and animal models.
-                    Assess on-target and off-target safety concerns, including peripheral risks.
-                    Evaluate the risk of exaggerated pharmacology and immunogenicity.
-                    Consider the impact of genetic polymorphisms on target function.
-                    Use the use_pubmed_api function to find relevant safety data and literature.
-                    Provide a comprehensive safety profile addressing all points in the prompt's safety assessment section.""",
-                    )
-
-    # literature_agent = autogen.AssistantAgent(
-    #     name="Literature_Agent",
-    #     llm_config=config_list[0],
-    #     system_message="""You provide relevant literature and references related to the prompt. 
-    #                     You summarize the key points and provide a list of references.Use the use_pubmed_api function
-    #                     to find relevant scientific literature when needed.""",)
-
-def state_transition(last_speaker, groupchat):
-    print(f"checking if {last_speaker.name} used the pubmed api...")
-    if hasattr(last_speaker, 'last_function_call') and last_speaker.last_function_call:
-        if "use_pubmed_api" in last_speaker.last_function_call:
-            print(f"{last_speaker.name} used the PubMed API")
-            print(f"Query: {last_speaker.last_function_call['use_pubmed_api']['args'][0]}")
-            print(f"Results: {last_speaker.last_function_call['use_pubmed_api']['return_value']}")
-        else:
-            print(f"{last_speaker.name} did not use the PubMed API")
-
-    if last_speaker.name == "Initialiser":
-        print("Next speaker: Moderator")
-        return next(agent for agent in groupchat.agents if agent.name == "Moderator")
-    elif last_speaker.name == "Moderator":
-        print("Next speaker: Scientific_Rational")
-        return next(agent for agent in groupchat.agents if agent.name == "Scientific_Rational")
-    elif last_speaker.name == "Scientific_Rational":
-        print("Next speaker: Safety_Assistant")
-        return next(agent for agent in groupchat.agents if agent.name == "Safety_Assistant")
-    elif last_speaker.name == "Safety_Assistant":
-        print("Next speaker: Target_Assessment")
-        return next(agent for agent in groupchat.agents if agent.name == "Target_Assessment")
-    elif last_speaker.name == "Target_Assessment":
-        print("Next speaker: Moderator")
-        return next(agent for agent in groupchat.agents if agent.name == "Moderator")
-    else:
-        print(f"Unexpected last speaker: {last_speaker.name}. Ending conversation.")
-        return None
-
-
-agent_list=[initialiser, scientific_rational, safety_officer, target_assessment, Moderator]
-
+# Register the use_pubmed_api function for all agents
 for agent in agent_list:
-    agent.register_function(
-        function_map = {
-            "use_pubmed_api": use_pubmed_api,
-        })
-    print(f"Registered use_pubmed_api function for agent: {agent.name}")
-    
-groupchat = GroupChat(
-    agents=[initialiser,Moderator, scientific_rational, safety_officer, target_assessment],
-    messages=[],
-    max_round=6,
-    speaker_selection_method=state_transition,
-    send_introductions=True,
-)
+    autogen.agentchat.register_function(
+        f=use_pubmed_api,  
+        caller=agent,
+        executor=agent,
+        name="use_pubmed_api",
+        description="""
+        Search PubMed for scientific literature related to the given query.
+
+        This function should be used when you need to retrieve recent, peer-reviewed scientific 
+        information from literature:
+        - Finding evidence to support scientific claims
+        - Gathering information on recent advancements in a specific area of biomedical research
+        - Identifying key papers or authors in a particular field
+        - Checking the current state of knowledge on a specific topic
+        - You need up-to-date, scientifically validated information
+        - You want to cite specific papers to support your arguments
+        - You need to explore the current research landscape on a topic
+
+        Returns: A formatted string containing details of the found papers, including titles, DOI, abstracts.
+        """
+    )
 
 
-manager = autogen.GroupChatManager(
-    groupchat=groupchat,
-    llm_config=gpt3_config,
-)
+
 
 def process_message(message):
     # Clear the group chat history
-    groupchat.messages.clear()
+
+    
+    #groupchat.messages.clear()
     
     # Initiate the chat using the initialiser
     initialiser.initiate_chat(

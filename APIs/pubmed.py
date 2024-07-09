@@ -19,37 +19,44 @@ class PubMedAPI:
         handle.close()
         return results
 
+    def get_author_name(self, author):
+        last_name = author.get("LastName", "")
+        initials = author.get("Initials", "")
+        if last_name or initials:
+            return f"{last_name} {initials}".strip()
+        return "Unknown"
+
     def query(self, query, max_results=10):
         print(f"PubMedAPI.query called with: {query}, {max_results}")
 
         id_list = self.search_pubmed(query, max_results)
         papers = []
         for paper in self.fetch_details(id_list)["PubmedArticle"]:
-            title = paper["MedlineCitation"]["Article"]["ArticleTitle"]
             try:
-                abstract = paper["MedlineCitation"]["Article"]["Abstract"]["AbstractText"][0]
-            except KeyError:
-                abstract = "No abstract available"
-            authors = ", ".join([author["LastName"] + " " + author["Initials"] 
-                                 for author in paper["MedlineCitation"]["Article"]["AuthorList"]])
-            journal = paper["MedlineCitation"]["Article"]["Journal"]["Title"]
-            year = paper["MedlineCitation"]["Article"]["Journal"]["JournalIssue"]["PubDate"].get("Year", "N/A")
-            
-            # Extract DOI
-            doi = ""
-            for id in paper["PubmedData"]["ArticleIdList"]:
-                if id.attributes["IdType"] == "doi":
-                    doi = str(id)
-                    break
-            
-            papers.append({
-                "title": title,
-                "abstract": abstract,
-                "authors": authors,
-                "journal": journal,
-                "year": year,
-                "doi": doi
-            })
+                title = paper["MedlineCitation"]["Article"]["ArticleTitle"]
+                abstract = paper["MedlineCitation"]["Article"].get("Abstract", {}).get("AbstractText", ["No abstract available"])[0]
+                authors = ", ".join([self.get_author_name(author) 
+                                     for author in paper["MedlineCitation"]["Article"].get("AuthorList", [])])
+                journal = paper["MedlineCitation"]["Article"]["Journal"]["Title"]
+                year = paper["MedlineCitation"]["Article"]["Journal"]["JournalIssue"]["PubDate"].get("Year", "N/A")
+                
+                # Extract DOI
+                doi = ""
+                for id in paper["PubmedData"]["ArticleIdList"]:
+                    if id.attributes["IdType"] == "doi":
+                        doi = str(id)
+                        break
+                
+                papers.append({
+                    "title": title,
+                    "abstract": abstract,
+                    "authors": authors,
+                    "journal": journal,
+                    "year": year,
+                    "doi": doi
+                })
+            except KeyError as e:
+                print(f"Error processing paper: {e}")
             time.sleep(1)  # Be nice to NCBI servers
         return papers
 
