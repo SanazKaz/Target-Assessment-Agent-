@@ -1,0 +1,89 @@
+Prompt
+                         |
+                         v
+            +-------------------------+
+            |  Generate Initial Drafts |
+            |   (3 Agents in parallel) |
+            +-------------------------+
+                         |
+            Prompt: "Try to answer this question/instruction with 
+            step-by-step thoughts and make the answer more structural.
+            Use `\n\n` to split the answer into several paragraphs.
+            Just respond to the instruction directly."
+                         |
+                         v
+            +-------------------------+
+            |   Integrate 3 Drafts     |
+            +-------------------------+
+                         |
+            Prompt: "Referencing the answers provided by all agents, 
+            synthesize a more detailed and comprehensive response by 
+            integrating all relevant details from these answers. 
+            Ensure logical coherence and provide ONLY THE MERGED 
+            ANSWER AS THE OUTPUT."
+                         |
+                         v
+            +-------------------------+
+            |    Apply RAG to Draft    |
+            +-------------------------+
+                         |
+            Prompt: "I want to revise the answer according to 
+            retrieved related text of the question in WIKI pages.
+            You need to check whether the answer is correct.
+            If you find some errors in the answer, revise the answer 
+            to make it better."
+                         |
+                         v
+         +--------------------------------+
+         |  Iterative Refinement Process   |
+         |  (Repeat for num_steps times)   |
+         |                                 |
+         |   +-------------------------+   |
+         |   | Generate New Draft      |   |
+         |   | (based on previous)     |   |
+         |   +-------------------------+   |
+         |              |                  |
+         |   Prompt: "Base your response on the provided question   |
+         |   and the previous answer. Expand the answer by adding   |
+         |   more details to enhance its comprehensiveness."        |
+         |              |                  |
+         |              v                  |
+         |   +-------------------------+   |
+         |   |    Apply RAG to Draft   |   |
+         |   +-------------------------+   |
+         |              |                  |
+         |   (Same RAG prompt as above)    |
+         |              |                  |
+         +--------------|------------------+
+                        |
+                        v
+            +-------------------------+
+            |   Combine Step Outputs   |
+            |   (if specified mode)    |
+            +-------------------------+
+                        |
+            Prompt: "Referencing the answers provided by each step, 
+            synthesize a more detailed and comprehensive response by 
+            integrating all relevant details from these answers. 
+            Ensure logical coherence and provide ONLY THE MERGED 
+            ANSWER AS THE OUTPUT."
+                        |
+                        v
+            +-------------------------+
+            |    Final Refinement      |
+            +-------------------------+
+                        |
+            Prompt: "Based on the original answer and an additional 
+            supplementary answer, generate a response that is richer 
+            in detail and logically coherent. Review the original answer:
+            1. If any part of the answer is correct and requires no 
+               further details, retain that portion unchanged.
+            2. For parts that may be improved or lack necessary details, 
+               enhance them by integrating information from the 
+               supplementary answer.
+            3. If you identify any errors within the answers, correct 
+               these errors while ensuring that the revised content 
+               remains logically coherent."
+                        |
+                        v
+                  Final Answer

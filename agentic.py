@@ -8,7 +8,6 @@ from autogen import GroupChat
 from APIs.pubmed import PubMedAPI # Import the PubMedAPI class for literature search
 
 
-
 # Load environment variables from .env file
 
 load_dotenv()
@@ -38,7 +37,7 @@ gpt3_config = {
 
 initialiser = autogen.UserProxyAgent(
     name="Initialiser",
-    human_input_mode="NEVER",
+    human_input_mode="NEVER", # **
 )
 
 Moderator = autogen.AssistantAgent(
@@ -55,9 +54,11 @@ Moderator = autogen.AssistantAgent(
                     4. Compile and summarize the inputs from all agents into a cohesive final report.
                     5. Ensure all claims are properly referenced and the report follows the specified format.
                     6. Present the final output, including a complete list of references."""
-                    )
+                    ) # dominic lukes? AI competency centre same voice throughout the conversation
 
-scientific_rational = autogen.AssistantAgent(
+
+
+scientific_rationale = autogen.AssistantAgent(
     name="SAR",
     llm_config=config_list[0],
 
@@ -118,11 +119,11 @@ target_assessment = autogen.AssistantAgent(
 
 
 
-agent_list=[scientific_rational, safety_officer, target_assessment]
+agent_list=[scientific_rationale, safety_officer, target_assessment]
 
     
 groupchat = GroupChat(
-    agents=[initialiser, Moderator, scientific_rational, safety_officer, target_assessment],
+    agents=[initialiser, Moderator, scientific_rationale, safety_officer, target_assessment],
     messages=[],
     max_round=12,
     speaker_selection_method="round_robin",
@@ -190,7 +191,7 @@ def use_pubmed_api(query: str , max_results=10):
     result = pubmed_api.format_results(papers)
     print("PubMed API call completed")
     
-    return result
+    return str(result)
 
 # havent done it for moderator as it interferes with other specialist agents by suggesting tool call.
 # A few options - 
