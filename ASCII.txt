@@ -52,7 +52,9 @@ Prompt
          |   |    Apply RAG to Draft   |   |
          |   +-------------------------+   |
          |              |                  |
-         |   (Same RAG prompt as above)    |
+         |   Prompt: "Base your response on the provided question   |
+         |   and the previous answer. Expand the answer by adding   |
+         |   more details to enhance its comprehensiveness."        |
          |              |                  |
          +--------------|------------------+
                         |

@@ -66,7 +66,7 @@ class PubMedAPI:
             f"Authors: {paper['authors']}\n"
             f"Journal: {paper['journal']}, {paper['year']}\n"
             f"DOI: {paper['doi']}\n"
-            f"Abstract: {paper['abstract'][:200]}..."
+            f"Abstract: {paper['abstract']}"
             for paper in papers
         ])
 

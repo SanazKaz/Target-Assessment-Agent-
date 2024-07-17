@@ -5,35 +5,34 @@ import autogen
 import tempfile
 from autogen.coding import LocalCommandLineCodeExecutor
 from autogen import GroupChat
-from APIs.pubmed import PubMedAPI # Import the PubMedAPI class for literature search
+from APIs.pubmed import PubMedAPI
+import agentops
+
 
 
 # Load environment variables from .env file
 
 load_dotenv()
+agentops.init(api_key=os.getenv("AGENTOPS_API_KEY"))
+
+
+
+ # Import the PubMedAPI class for literature search
+
 
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
 # Load the config list from JSON
-config_list = autogen.config_list_from_json(
-    "OA_config_list.json",
-    filter_dict={"model": ["gpt-3.5-turbo"]}
-)
-
-# Add the API key to each config in the list
-for config in config_list:
-    config["api_key"] = openai_api_key
-
-
+llm_config ={
+        "model": "gpt-3.5-turbo",
+        "temperature": 0.3, # temperature controls the randomness of the output in sampling
+        "api_key": openai_api_key, 
+        "top_p": 1.0, # exceeds predefined probability threshold also known as nucleus sampling
+        #"top_k": 40, # controls the size of the model's vocabulary
+    }
+# see https://www.youtube.com/watch?v=-BBulGM6xF0
+ 
 pubmed_api =PubMedAPI(email="sanazkazemi@hotmail.com") # for enterez to contact you if neccessary
-
-
-gpt3_config = {
-    "cache_seed": False,  # change the cache_seed for different trials
-    "temperature": 0,
-    "config_list": config_list,
-    "timeout": 120,
-}
 
 initialiser = autogen.UserProxyAgent(
     name="Initialiser",
@@ -42,7 +41,7 @@ initialiser = autogen.UserProxyAgent(
 
 Moderator = autogen.AssistantAgent(
     name="Moderator",
-    llm_config=config_list[0],
+    llm_config=llm_config,
     human_input_mode="",
     system_message="""You are 'Moderator', overseeing the drug discovery process. 
                     ensure all aspects of the prompt are addressed, and synthesize a comprehensive final report. You will:
@@ -60,7 +59,7 @@ Moderator = autogen.AssistantAgent(
 
 scientific_rationale = autogen.AssistantAgent(
     name="SAR",
-    llm_config=config_list[0],
+    llm_config=llm_config,
 
     system_message="""You are 'SAR', an expert in target discovery and clinical target rationale. Your role is to develop a comprehensive scientific rationale for the given target in the specified disease. 
 
@@ -86,11 +85,11 @@ safety_officer = autogen.AssistantAgent(
                     Evaluate the risk of exaggerated pharmacology and immunogenicity.
                     Consider the impact of genetic polymorphisms on target function.
                     Provide a comprehensive safety profile addressing all points in the prompt's safety assessment section""",
-    llm_config=config_list[0],
+    llm_config=llm_config,
 )
 target_assessment = autogen.AssistantAgent(
     name="TAG",
-    llm_config=config_list[0],
+    llm_config=llm_config,
     system_message="""You are 'TAG' a specialist in assessing targets for drug discovery. Your role is to develop and outline a comprehensive 1-year Target Assessment (TA) to Lead Identification (LI) plan for the proposed drug target. Your responsibilities include:
 
                     Analyze and highlight key inflection points that will inform the project's feasibility.
@@ -109,12 +108,12 @@ target_assessment = autogen.AssistantAgent(
                     Be prepared to interact with other specialists to ensure a well-rounded evaluation of the target""",
                     )
 
-    # literature_agent = autogen.AssistantAgent(
-    #     name="Literature_Agent",
-    #     llm_config=config_list[0],
-    #     system_message="""You provide relevant literature and references related to the prompt. 
-    #                     You summarize the key points and provide a list of references.Use the use_pubmed_api function
-    #                     to find relevant scientific literature when needed.""",)
+literature_agent = autogen.AssistantAgent(
+    name="Literature_Agent",
+    llm_config=llm_config,
+    system_message="""You provide relevant literature and references related to the prompt. 
+                    You summarize the key points and provide a list of references.Use the use_pubmed_api function
+                    to find relevant scientific literature when needed.""",)
 
 
 
@@ -132,7 +131,7 @@ groupchat = GroupChat(
 
 manager = autogen.GroupChatManager(
     groupchat=groupchat,
-    llm_config=gpt3_config,)
+    llm_config=llm_config,)
 
 
 def use_pubmed_api(query: str , max_results=10):

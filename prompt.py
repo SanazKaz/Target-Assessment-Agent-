@@ -79,11 +79,13 @@ def prompt_to_use(target, disease, mode_of_action, context, idea):
     
     return prompt
 
-target = "Integrase"
-disease = "HIV 1 infection"
-mode_of_action = """Inhibitor of HIV-1 integrase, a viral enzyme that integrates the viral genome into the DNA of the host cell."""
-context = "We are trying to inhibit the HIV-1 integrase enzyme to prevent the integration of the viral genome into the host cell DNA and thus stop the replication of the virus."
-idea = "To inhibit HIV integrase in the intasome complex."
+target = "Neurokinin 3 receptor (NK3R) GPCR"
+disease = "Vasomotor symptoms due to menopause"
+mode_of_action = """Antagonism of the neurokinin 3 receptor (NK3R) GPCR"""
+context = """Preclinical research has strongly implicated heightened signalling of neurokinin B together with its receptor (neurokinin 3 receptor [NK3R]) 
+in causing menopausal vasomotor symptoms, via the hypothalamic median pre-optic nucleus and autonomic thermoregulatory pathway. 2 Subsequent phase 2b trials of NK3R antagonists showed that pharmacological blockade of NK3R attenuated vasomotor symptoms almost as effectively as hormone treatment, without the need for oestrogen exposure.
+"""
+idea = "Develop an inhibitor of the neurokinin 3 receptor (NK3R) GPCR for the treatment of vasomotor symptoms due to menopause."
 
 new_prompt = prompt_to_use(target=target, disease=disease, mode_of_action=mode_of_action, context=context, idea=idea)
 print(new_prompt)

@@ -14,6 +14,6 @@ def chat():
     except Exception as e:
         print(f"Error processing message: {str(e)}")
         return jsonify({'error': 'An error occurred while processing your message.'}), 500
-
+    
 if __name__ == '__main__':
     app.run(debug=True)
