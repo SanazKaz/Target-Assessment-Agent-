@@ -4,7 +4,7 @@ import time
 import xml.etree.ElementTree as ET
 import os
 
-class PMC_API:
+class Pubmed_API:
     def __init__(self, email):
         self.email = email
         Entrez.email = email
@@ -116,13 +116,13 @@ class PMC_API:
                 self.save_paper_to_txt(paper_data)
             except Exception as e:
                 print(f"Error processing paper (PMC ID: {pmc_id}): {e}")
-            time.sleep(1)  # Be nice to NCBI servers
+            time.sleep(2)  # Be nice to NCBI servers
         return papers
 
 # Test the PMC_API
 if __name__ == "__main__":
-    pmc_api = PMC_API(email="sanazkazemi@hotmail.com")  # Replace with your email
-    query = "Machine Learning AND COVID-19"
+    pmc_api = Pubmed_API(email="sanazkazemi@hotmail.com")  # Replace with your email
+    query = input("Enter a search query: ")
     max_results = 10
 
     print(f"Searching PMC for: '{query}'")
