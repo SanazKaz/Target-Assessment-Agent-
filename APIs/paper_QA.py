@@ -15,75 +15,9 @@ def add_docs(directory_path):
     and returns the document store object"""
 
 
-    prompts = PromptCollection(
-            summary_prompt = (
-            "Extract key information from the excerpt below that could be useful for other AI agents.\n\n"
-            "Excerpt from {citation}\n\n----\n\n{text}\n\n----\n\n"
-            "Focus: {question}\n\n"
-            "Do not form a summary or answer the question directly."
-            "Include specific numbers, equations, or direct quotes (marked with quotation marks) when relevant. "
-            'Reply "Not applicable" if the excerpt contains no useful information. '
-            "At the end, provide an integer score from 1-10 on a newline indicating usefulness of the information. "
-            "Do not explain your score."
-            "\n\nKey Information Summary ({summary_length}):"
-        ),
+    prompts = PromptCollection()
 
-        summary_json_prompt = (
-            "Excerpt from {citation}\n\n----\n\n{text}\n\n----\n\nFocus: {question}\n\n"
-        ),
-
-        qa_prompt = (
-            "Compile relevant information from the context below.\n\n"
-            "Context (with usefulness scores):\n\n{context}\n\n----\n\n"
-            "Focus: {question}\n\n"
-            "Provide a comprehensive compilation of relevant information from the context. "
-            "Do not form conclusions or direct answers. "
-            "For each piece of information, indicate the source via citation keys at the end of sentences, "
-            "like (Author, Year, p. 3-4). Only cite from the provided context. "
-            "Organize the information in a clear, structured manner. "
-            "If there are conflicting data or perspectives, present them objectively. "
-            "Include relevant quotes if present.\n\n"
-            "Information Compilation ({answer_length}):"
-        ),
-
-        select_paper_prompt = (
-            "Select papers that may help answer the question below. "
-            "Papers are listed as $KEY: $PAPER_INFO. "
-            "Return a list of keys, separated by commas. "
-            'Return "None", if no papers are applicable. '
-            "Choose papers that are relevant, from reputable sources, and timely "
-            "(if the question requires timely information).\n\n"
-            "Question: {question}\n\n"
-            "Papers: {papers}\n\n"
-            "Selected keys:"
-        ),
-
-        citation_prompt = (
-            "Provide the citation for the following text in Harvard citation format. "
-            "Do not write an introductory sentence. "
-            "If reporting date accessed, the current year is 2024\n\n"
-            "{text}\n\n"
-            "Citation:"
-        ),
-
-        default_system_prompt = (
-            "Compile information in a direct and specific manner. "
-            "Your output will be used by other AI agents, so focus on facts and data. "
-            "Define any ambiguous terms or acronyms. "
-            "Do not form conclusions or provide direct answers to questions."
-        ),
-
-        summary_json_system_prompt = """\
-        Provide a summary of the key information from the excerpt that could be useful for other AI agents. Respond with the following JSON format:
-        {
-        "key_information": "...",
-        "usefulness_score": "..."
-        }
-        where `key_information` is relevant data from text - {summary_length} words and `usefulness_score` is the potential usefulness of this information for other AI agents (out of 10).
-        """
-    )
-
-    docs = Docs(prompts=prompts)
+    docs = Docs(prompts=prompts, llm="gpt-4o-mini")
     print(select_paper_prompt)
     
     my_docs = []
@@ -111,9 +45,53 @@ def query_docs(query, docs):
     
     return answer
 
+# for text in docs.texts: # accesses ALL the chunks not just relevant ones
+#     print(text.name, text.text)
+
 docs = add_docs("/Users/sanazkazeminia/Documents/LLM_Agent/Target-Assessment-Agent-/pmc_papers/")
-answer = query_docs("Machine Learning AND COVID-19", docs)
-context_for_qa = answer.context
-print(context_for_qa)
+answer_1 = query_docs("relevance of dopamine 1 receptor to parkinsons disease", docs)
+# print(f"answer: {answer_1.answer}")
+context_answer = answer_1.context
+# print(f"context: {context_answer}")
+evidence = docs.get_evidence(answer_1, k=10, max_sources=10, detailed_citations=True)
+
+# print(f"evidence: {evidence}")
+# for text in docs.texts: # accesses ALL the chunks not just relevant ones
+#     print(text.name, text.text)
+
+# for context in evidence.contexts:
+#     print(context.text.name, context.text.text)
+    
 
 
+dictionary_for_llm = {}
+
+for context in evidence.contexts:
+    # The key will be the context summary
+    summary = context.context  # This is the summary/context we got from the LLM
+
+    source_info = {
+        "chunk_id": context.text.name,
+        "full_citation": context.text.doc.citation,
+        }
+
+
+
+    # The value will be a dictionary containing the original text, source, and relevance score
+    chunk_info = {
+        "original_text": context.text.text,
+        "source": source_info,
+        "relevance_score": context.score  # Adding the relevance score
+    }
+
+    # Add to our main dictionary, using the summary as the key
+    dictionary_for_llm[summary] = chunk_info
+
+# print("keys", dictionary_for_llm.keys())
+# print("values", dictionary_for_llm.values())
+# print(len(dictionary_for_llm))
+
+print("dictionary_for_llm", dictionary_for_llm)
+
+with open('dictionary_for_llm.json', 'w') as f:
+    json.dump(dictionary_for_llm, f, indent=4)

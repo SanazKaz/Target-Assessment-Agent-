@@ -116,7 +116,7 @@ class Pubmed_API:
                 self.save_paper_to_txt(paper_data)
             except Exception as e:
                 print(f"Error processing paper (PMC ID: {pmc_id}): {e}")
-            time.sleep(2)  # Be nice to NCBI servers
+            time.sleep(1)  # Be nice to NCBI servers
         return papers
 
 # Test the PMC_API

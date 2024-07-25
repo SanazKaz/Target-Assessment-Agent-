@@ -1,0 +1,5 @@
+Target for development --> Gamma Sectrase for Alzheimers disease - see this paper https://www.frontiersin.org/journals/molecular-neuroscience/articles/10.3389/fnmol.2023.1279740/full 
+
+A failed target that must not be pursued further --> BACE1 - https://nature.com/articles/s41582-021-00545-1 // https://www.alzforum.org/alzpedia/bace1
+
+dummy target --> EGFR for Huntington's Disease 
