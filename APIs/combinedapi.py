@@ -140,7 +140,6 @@ class PubMedProcessor:
         answer = self.query_docs(doc_query)
         self.dictionary_for_llm = self.create_dictionary_for_llm(answer)
 
-        
         return self.create_dictionary_for_llm(answer)
 
     # def get_dictionary(self): 

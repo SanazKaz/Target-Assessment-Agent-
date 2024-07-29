@@ -79,12 +79,12 @@ def prompt_to_use(target, disease, mode_of_action, context, idea):
     
     return prompt
 
-target = "Neurokinin 3 receptor (NK3R) GPCR"
-disease = "Vasomotor symptoms due to menopause"
-mode_of_action = """Antagonism of the neurokinin 3 receptor (NK3R) GPCR"""
-context = """Preclinical research has strongly implicated heightened signalling of neurokinin B together with its receptor (neurokinin 3 receptor [NK3R]) 
-in causing menopausal vasomotor symptoms, via the hypothalamic median pre-optic nucleus and autonomic thermoregulatory pathway. 2 Subsequent phase 2b trials of NK3R antagonists showed that pharmacological blockade of NK3R attenuated vasomotor symptoms almost as effectively as hormone treatment, without the need for oestrogen exposure.
-"""
+target = "Gamma secretase"
+disease = "Alzheimer's disease"
+mode_of_action = """Gamma secretase is a multi-subunit protease complex that cleaves type I transmembrane proteins, including the amyloid precursor protein (APP) leading to the generation of amyloid-beta (Aβ) peptides."""
+context =""" Aβ is a family of secreted peptides generated from the sequential cleavages of the type 1 membrane protein APP by beta-secretase (BACE) and gamma-secretase (GSEC), respectively. BACE cleaves APP in the luminal domain, releasing the N-terminal soluble APPβ domain and leaving the C-terminal fragment, APP-CTF, which remains in the membrane. Subsequently, the APP-CTF is recruited to GSEC, a complex comprising four subunits, including PS, which harbors the active site. GSEC first cuts APP-CTF at the epsilon-cleavage site located close to the inner leaflet of the membrane. This cleavage event produces either Aβ48 or Aβ49 and the APP intracellular domain (AICD). The membrane-retained Aβ48 or Aβ49 is then further processed by GSEC in a continuous cascade of proteolytical events at every third of fourth amino acid, where the N-terminal product of each reaction becomes the substrate for the next GSEC cleavage event. Accordingly, GSEC processes APP-CTF along two main product lines, Aβ49 → 46 → 43 → 40 → 37… and Aβ48 → 45 → 42 → 38…, respectively (Takami et al., 2009; Matsumura et al., 2014; Olsson et al., 2014). During this processing cascade, Aβ43 and shorter Aβ peptides stochastically escape further processing by GSEC and are released into the extracellular space. As a result, Aβ peptides varying from 30 to 43 amino acids in length are secreted into the extracellular space. Among all secreted Aβ, Aβ40 is the most abundant in human CSF, followed by Aβ38, Aβ42, and Aβ37 (Liu et al., 2022). In cognitively normal individuals, Aβ42 and Aβ43 represent a smaller portion of the total secreted Aβ (Liu et al., 2022). These longer forms of Aβ seed the formation of Aβ-amyloid aggregates, a key step in the formation of amyloid plaques (Veugelen et al., 2016), as illustrated in Figure 1. Aβ42, which is produced in higher amounts than Aβ43, is the most abundant Aβ in amyloid plaques (Welander et al., 2009).
+""" 
+
 idea = "Develop an inhibitor of the neurokinin 3 receptor (NK3R) GPCR for the treatment of vasomotor symptoms due to menopause."
 
 new_prompt = prompt_to_use(target=target, disease=disease, mode_of_action=mode_of_action, context=context, idea=idea)
