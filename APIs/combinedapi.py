@@ -136,7 +136,7 @@ class PubMedProcessor:
 
     async def full_process(self, pubmed_query, doc_query, max_results=10):
         papers = self.query_pubmed(pubmed_query, max_results)
-        asyncio.to_thread(self.process_papers, papers)
+        await asyncio.to_thread(self.process_papers, papers)
         answer = self.query_docs(doc_query)
         self.dictionary_for_llm = self.create_dictionary_for_llm(answer)
 
