@@ -8,4 +8,4 @@ APIs/__pycache__/
 *.jsonl
 
  pmc_papers/*
- /.DS_Store
+ .DS_Store

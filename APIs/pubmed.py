@@ -4,10 +4,11 @@ import time
 import xml.etree.ElementTree as ET
 import os
 
-class Pubmed_API:
+class Pubmed_API_langchain:
     def __init__(self, email):
         self.email = email
         Entrez.email = email
+        self.papers_dict = {}  # Store papers in memory
 
     def search_pmc(self, query, max_results=10):
         handle = Entrez.esearch(db="pmc", term=query, retmax=max_results, sort="relevance")
@@ -41,6 +42,7 @@ class Pubmed_API:
         title = get_text(article_meta.find(".//article-title"))
         if not title:
             title = "No title available"
+        print(f"Title: {title}")
         
         abstract = ""
         abstract_elem = article_meta.find(".//abstract")
@@ -64,6 +66,7 @@ class Pubmed_API:
         
         doi_elem = article_meta.find(".//article-id[@pub-id-type='doi']")
         doi = get_text(doi_elem) if doi_elem is not None else "No DOI available"
+
     
         return {
             "title": title,
@@ -75,13 +78,7 @@ class Pubmed_API:
             "doi": doi
         }
 
-    def save_paper_to_txt(self, paper, output_dir="pmc_papers"):
-        # Create the output directory if it doesn't exist
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # Create a filename using the PMC ID
-        filename = os.path.join(output_dir, f"PMC{paper['pmc_id']}.txt")
-        
+    def save_paper_to_memory(self, paper):
         # Format the paper data as text
         content = f"Title: {paper['title']}\n\n"
         content += f"Authors: {paper['authors']}\n\n"
@@ -93,16 +90,15 @@ class Pubmed_API:
         content += f"Abstract:\n{paper['abstract']}\n\n"
         content += f"Full Text:\n{paper['full_text']}\n"
         
-        # Save the paper data to a text file
-        with open(filename, 'w', encoding='utf-8') as f:
-            f.write(content)
+        # Store the paper data in memory
+        self.papers_dict[paper['pmc_id']] = content
         
-        print(f"Saved paper to {filename}")
+        print(f"Saved paper PMC{paper['pmc_id']} to memory")
 
     def query(self, query, max_results=10):
         print(f"PMC_API.query called with: {query}, {max_results}")
 
-        id_list = self.search_pmc(query, max_results)  # Get results sorted by relevance
+        id_list = self.search_pmc(query, max_results)
         papers = []
         for pmc_id in id_list:
             try:
@@ -112,31 +108,35 @@ class Pubmed_API:
                 paper_data["citation_count"] = self.get_citation_count(pmc_id)
                 papers.append(paper_data)
                 
-                # Save each paper to its own text file
-                self.save_paper_to_txt(paper_data)
+                # Save each paper to memory
+                self.save_paper_to_memory(paper_data)
             except Exception as e:
                 print(f"Error processing paper (PMC ID: {pmc_id}): {e}")
             time.sleep(1)  # Be nice to NCBI servers
         return papers
 
+    def get_papers_for_llm(self):
+        # Format papers for LLM agents
+        formatted_papers = []
+        for pmc_id, content in self.papers_dict.items():
+            formatted_papers.append(f"Paper PMC{pmc_id}:\n\n{content}\n\n")
+        return "\n".join(formatted_papers)
+
 # Test the PMC_API
 if __name__ == "__main__":
-    pmc_api = Pubmed_API(email="sanazkazemi@hotmail.com")  # Replace with your email
+    pmc_api = Pubmed_API_langchain(email="sanazkazemi@hotmail.com")  # Replace with your email
     query = input("Enter a search query: ")
     max_results = 10
 
     print(f"Searching PMC for: '{query}'")
     papers = pmc_api.query(query, max_results)
     
-    print(f"\nRetrieved and saved {len(papers)} papers:")
-    for paper in papers:
-        print(f"\nTitle: {paper['title']}")
-        print(f"Authors: {paper['authors']}")
-        print(f"Journal: {paper['journal']}, {paper['year']}")
-        print(f"PMC ID: {paper['pmc_id']}")
-        print(f"DOI: {paper['doi']}")
-        print(f"Citation Count: {paper['citation_count']}")
-        print(f"Abstract: {paper['abstract'][:200]}...")
-        print(f"Full Text: {paper['full_text'][:200]}...")
+    print(f"\nRetrieved and saved {len(papers)} papers in memory")
 
-    print("\nAll papers have been saved to individual text files in the 'pmc_papers' directory.")
+    # Example of how to get formatted papers for LLM agents
+    llm_input = pmc_api.get_papers_for_llm()
+    print("\nFormatted papers for LLM agents:")
+    print(llm_input[:500] + "...")  # Print first 500 characters as an example
+
+    # Here you would typically pass `llm_input` to your LLM agent
+    # For example: llm_agent.process(llm_input)

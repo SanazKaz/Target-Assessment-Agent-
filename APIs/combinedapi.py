@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import tempfile
 import asyncio
 
+
 class PubMedProcessor:
     def __init__(self, email):
         load_dotenv()
@@ -81,7 +82,7 @@ class PubMedProcessor:
                 papers.append(paper_data)
             except Exception as e:
                 print(f"Error processing paper (PMC ID: {pmc_id}): {e}")
-            time.sleep(1)  # Be nice to NCBI servers
+            time.sleep(3)  # Be nice to NCBI servers
         return papers
 
     def process_papers(self, papers):
@@ -142,18 +143,17 @@ class PubMedProcessor:
 
         return self.create_dictionary_for_llm(answer)
 
-    # def get_dictionary(self): 
-    #     return self.dictionary_for_llm
+    def get_dictionary(self): 
+        return self.dictionary_for_llm
 
-# Usage example:
-# if __name__ == "__main__":
-#     async def main():
-#         processor = PubMedProcessor(email="your_email@example.com")
-#         pubmed_query = "dopamine 1 receptor Parkinson's disease"
-#         doc_query = "relevance of dopamine 1 receptor to Parkinson's disease"
-#         result = await processor.full_process(pubmed_query, doc_query, max_results=5)
-#         print(json.dumps(result, indent=2))
+if __name__ == "__main__":
+    async def main():
+        processor = PubMedProcessor(email="your_email@example.com")
+        pubmed_query = "dopamine 1 receptor Parkinson's disease"
+        doc_query = "relevance of dopamine 1 receptor to Parkinson's disease"
+        result = await processor.full_process(pubmed_query, doc_query, max_results=5)
+        print(json.dumps(result, indent=2))
 
-#     asyncio.run(main())
+    asyncio.run(main())
 
         
