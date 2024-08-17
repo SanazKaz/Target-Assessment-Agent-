@@ -9,6 +9,7 @@ class Pubmed_API_langchain:
         self.email = email
         Entrez.email = email
         self.papers_dict = {}  # Store papers in memory
+        self.max_results = 10
 
     def search_pmc(self, query, max_results=10):
         handle = Entrez.esearch(db="pmc", term=query, retmax=max_results, sort="relevance")
@@ -42,7 +43,7 @@ class Pubmed_API_langchain:
         title = get_text(article_meta.find(".//article-title"))
         if not title:
             title = "No title available"
-        print(f"Title: {title}")
+            print(f"Title: {title}")
         
         abstract = ""
         abstract_elem = article_meta.find(".//abstract")
@@ -94,8 +95,9 @@ class Pubmed_API_langchain:
         self.papers_dict[paper['pmc_id']] = content
         
         print(f"Saved paper PMC{paper['pmc_id']} to memory")
+        print(f"Title: {paper['title']}")
 
-    def query(self, query, max_results=10):
+    def query(self, query, max_results=5):
         print(f"PMC_API.query called with: {query}, {max_results}")
 
         id_list = self.search_pmc(query, max_results)
