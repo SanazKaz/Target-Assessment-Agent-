@@ -1,7 +1,7 @@
 import getpass
 import os
 from langchain.pydantic_v1 import BaseModel, Field
-from langchain.tools import BaseTool, StructuredTool, tool
+from langchain.tools import StructuredTool, tool
 from langchain_openai import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
 from APIs.pubmed import Pubmed_API_langchain
@@ -12,7 +12,6 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.pydantic_v1 import BaseModel, Field, ValidationError
 import json
 import datetime
-from typing import Optional
 from langchain_core.tools import StructuredTool
 from langgraph.prebuilt import ToolNode
 import random
@@ -21,13 +20,17 @@ from langgraph.graph.message import add_messages
 from typing import Annotated
 from langgraph.graph import END, MessageGraph, START
 from typing_extensions import TypedDict
-from IPython.display import Image, display
-from langchain_text_splitters import CharacterTextSplitter
 from langchain_text_splitters import SpacyTextSplitter
+from typing import Literal
+from langgraph.graph.message import add_messages
+from typing import Annotated
+from langgraph.graph import END, MessageGraph, START
+from typing_extensions import TypedDict
 
 
 
-working_hypothesis_prompt = """ 
+
+working_hypothesis_prompt_GSEC = """ 
 # Scientific Rationale for Gamma Secretase in Alzheimer's Disease
 
 
@@ -59,7 +62,7 @@ These longer forms of Aβ seed the formation of Aβ-amyloid aggregates, a key st
 
 """
 
-clinical_target_prompt = """ #Clinical Target Rationale for Gamma Secretase in Alzheimer's Disease
+clinical_target_prompt_GSEC = """ #Clinical Target Rationale for Gamma Secretase in Alzheimer's Disease
 
 
 ## Target Information 
@@ -88,7 +91,7 @@ These longer forms of Aβ seed the formation of Aβ-amyloid aggregates, a key st
     - Describe the evidence provided in clinics or by tools acting on the pathway where the target is involved.
     - Which kind of target modulation is required to treat the disease? """
 
-Challenges_prompt = """ #Challenges for the drug discovery program related to Gamma Secretase as a target in Alzheimer's Disease
+Challenges_prompt_GSEC = """ #Challenges for the drug discovery program related to Gamma Secretase as a target in Alzheimer's Disease
     **Given target:** Gamma secretase
     **Given disease:** Alzheimer's disease
     **Given mode of action:** Gamma secretase is a multi-subunit protease complex that cleaves type I transmembrane proteins, including the amyloid precursor protein (APP) leading to the generation of amyloid-beta (Aβ) peptides.
@@ -117,7 +120,166 @@ These longer forms of Aβ seed the formation of Aβ-amyloid aggregates, a key st
 
 """
 
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+
+
+working_hypothesis_prompt_BACE = """ 
+# Scientific Rationale for BACE in Alzheimer's Disease
+
+
+## Target Information 
+### Develop a scientific rationale for the following:
+                             
+    **Given target:** β-Site APP cleaving enzyme 1 (BACE1)
+    **Given disease:** Alzheimer's disease
+    **Given mode of action:** BACE1 inhibition leads to reduced production of amyloid-β (Aβ) peptides, which are the main component of amyloid plaques in the brains of Alzheimer's patients.
+
+## Task 1: Develop Scientific Rationale
+
+### Working Hypothesis
+- Detailed description of the idea
+- Unmet medical need
+- Suitability for combination therapy
+- Predictive biomarkers
+- Clinical relevance of existing biomarkers
+
+
+"""
+
+clinical_target_prompt_BACE = """ #Clinical Target Rationale for BACE in Alzheimer's Disease
+
+
+## Target Information 
+### Develop a scientific rationale for the following:
+                           
+    **Given target:** β-Site APP cleaving enzyme 1 (BACE1)
+    **Given disease:** Alzheimer's disease
+    **Given mode of action:** BACE1 inhibition leads to reduced production of amyloid-β (Aβ) peptides, which are the main component of amyloid plaques in the brains of Alzheimer's patients.
+
+##Context:
+Aβ is a family of secreted peptides generated from the sequential cleavages of the type 1 membrane protein APP by beta-secretase (BACE) and gamma-secretase (GSEC), respectively. 
+BACE cleaves APP in the luminal domain, releasing the N-terminal soluble APPβ domain and leaving the C-terminal fragment, APP-CTF, which remains in the membrane. 
+Subsequently, the APP-CTF is recruited to GSEC, a complex comprising four subunits, including PS, which harbors the active site. GSEC first cuts APP-CTF at the epsilon-cleavage site located close to the inner leaflet of the membrane. 
+This cleavage event produces either Aβ48 or Aβ49 and the APP intracellular domain (AICD). The membrane-retained Aβ48 or Aβ49 is then further processed by GSEC in a continuous cascade of proteolytical events at every third of fourth amino acid, where the N-terminal product of each reaction becomes the substrate for the next GSEC cleavage event.
+Accordingly, GSEC processes APP-CTF along two main product lines, Aβ49 → 46 → 43 → 40 → 37… and Aβ48 → 45 → 42 → 38…, respectively. During this processing cascade, Aβ43 and shorter Aβ peptides stochastically escape further processing by GSEC and are released into the extracellular space. 
+As a result, Aβ peptides varying from 30 to 43 amino acids in length are secreted into the extracellular space. Among all secreted Aβ, Aβ40 is the most abundant in human CSF, followed by Aβ38, Aβ42, and Aβ37. In cognitively normal individuals, Aβ42 and Aβ43 represent a smaller portion of the total secreted Aβ.
+These longer forms of Aβ seed the formation of Aβ-amyloid aggregates, a key step in the formation of amyloid plaques (Veugelen et al., 2016), as illustrated in Figure 1. Aβ42, which is produced in higher amounts than Aβ43, is the most abundant Aβ in amyloid plaques (Welander et al., 2009).
+ 
+
+ ### Clinical target rationale:
+    - How relevant is the target location to the disease biology?
+    - How is the target expression altered in human disease?
+    - How is the target involved in the physiological process relevant to the disease?
+    - Which phenotypes and genotypes were identified for the target?
+    - How is the genetic link between the target and the disease?
+    - Describe the evidence provided in clinics or by tools acting on the pathway where the target is involved.
+    - Which kind of target modulation is required to treat the disease? """
+
+Challenges_prompt_BACE = """ #Challenges for the drug discovery program related to BACE as a target in Alzheimer's Disease
+                           
+    **Given target:** β-Site APP cleaving enzyme 1 (BACE1)
+    **Given disease:** Alzheimer's disease
+    **Given mode of action:** BACE1 inhibition leads to reduced production of amyloid-β (Aβ) peptides, which are the main component of amyloid plaques in the brains of Alzheimer's patients.
+
+##Context:
+Aβ is a family of secreted peptides generated from the sequential cleavages of the type 1 membrane protein APP by beta-secretase (BACE) and gamma-secretase (GSEC), respectively. 
+BACE cleaves APP in the luminal domain, releasing the N-terminal soluble APPβ domain and leaving the C-terminal fragment, APP-CTF, which remains in the membrane. 
+Subsequently, the APP-CTF is recruited to GSEC, a complex comprising four subunits, including PS, which harbors the active site. GSEC first cuts APP-CTF at the epsilon-cleavage site located close to the inner leaflet of the membrane. 
+This cleavage event produces either Aβ48 or Aβ49 and the APP intracellular domain (AICD). The membrane-retained Aβ48 or Aβ49 is then further processed by GSEC in a continuous cascade of proteolytical events at every third of fourth amino acid, where the N-terminal product of each reaction becomes the substrate for the next GSEC cleavage event.
+Accordingly, GSEC processes APP-CTF along two main product lines, Aβ49 → 46 → 43 → 40 → 37… and Aβ48 → 45 → 42 → 38…, respectively. During this processing cascade, Aβ43 and shorter Aβ peptides stochastically escape further processing by GSEC and are released into the extracellular space. 
+As a result, Aβ peptides varying from 30 to 43 amino acids in length are secreted into the extracellular space. Among all secreted Aβ, Aβ40 is the most abundant in human CSF, followed by Aβ38, Aβ42, and Aβ37. In cognitively normal individuals, Aβ42 and Aβ43 represent a smaller portion of the total secreted Aβ.
+These longer forms of Aβ seed the formation of Aβ-amyloid aggregates, a key step in the formation of amyloid plaques (Veugelen et al., 2016), as illustrated in Figure 1. Aβ42, which is produced in higher amounts than Aβ43, is the most abundant Aβ in amyloid plaques (Welander et al., 2009).
+
+### Challenges:
+- Check the following idea for details on small molecule compounds: Developing small molecule modulators or inhibitors of BACE for Alzheimer's disease treatment.
+- Is a 'information driven approach' (IDA) strategy based on available small molecules possible?
+- Which small molecular modulators of the target known?
+- Which inhibitors, antagonists, agonists, negative allosteric modulators (NAM), positive allosteric modulators (PAM) are required for target modulation in the given disease? 
+- Which patients would respond the therapy?
+- Is the proposed mode of action on the target desirable and commercially viable in a clinical setting?
+- What are advantages and disadvantages of different therapeutic modalities (antibodies, small molecules, antisense oligonucleotides, PROTACs, molecular glue, peptide macrocycles, and so on) for tackling the target?
+
+- Alternative indications:
+- Describe alternative indication for modulators of the target and explain why.
+
+
+"""
+
+
+
+working_hypothesis_prompt_ALPHA = """ 
+# Scientific Rationale for 5-alpha reductase  in Huntington's Disease
+
+
+## Target Information 
+### Develop a scientific rationale for the following:
+                             
+    **Given target:**  5-alpha reductase
+    **Given disease:** Huntington's disease
+    **Given mode of action:** Inhibition of 5-alpha reductase can promote neuronal survival and reduce mutant huntingtin protein aggregation
+
+## Task 1: Develop Scientific Rationale
+
+### Working Hypothesis
+- Detailed description of the idea
+- Unmet medical need
+- Suitability for combination therapy
+- Predictive biomarkers
+- Clinical relevance of existing biomarkers
+
+
+"""
+
+clinical_target_prompt_ALPHA = """ #Clinical Target Rationale for 5-alpha reductase in Huntington's Disease
+
+
+## Target Information 
+### Develop a scientific rationale for the following:
+                           
+    **Given target:** 5-alpha reductase
+    **Given disease:** Huntington's disease
+    **Given mode of action:** Inhibition of 5-alpha reductase can promote neuronal survival and reduce mutant huntingtin protein aggregation
+
+
+ ### Clinical target rationale:
+    - How relevant is the target location to the disease biology?
+    - How is the target expression altered in human disease?
+    - How is the target involved in the physiological process relevant to the disease?
+    - Which phenotypes and genotypes were identified for the target?
+    - How is the genetic link between the target and the disease?
+    - Describe the evidence provided in clinics or by tools acting on the pathway where the target is involved.
+    - Which kind of target modulation is required to treat the disease? """
+
+Challenges_prompt_ALPHA = """ 
+#Challenges for the drug discovery program related to 5-alpha reductase  in Huntington's disease
+                           
+## Target Information 
+### Develop a scientific rationale for the following:
+                           
+    **Given target:**  5-alpha reductase
+    **Given disease:** Huntington's disease
+    **Given mode of action:** Inhibition of 5-alpha reductase can promote neuronal survival and reduce mutant huntingtin protein aggregation
+
+
+### Challenges:
+- Check the following idea for details on small molecule compounds: Developing small molecule modulators or inhibitors of 5-alpha reductase  for Huntington's Disease treatment.
+- Is a 'information driven approach' (IDA) strategy based on available small molecules possible?
+- Which small molecular modulators of the target known?
+- Which inhibitors, antagonists, agonists, negative allosteric modulators (NAM), positive allosteric modulators (PAM) are required for target modulation in the given disease? 
+
+- Which patients would respond the therapy?
+- Is the proposed mode of action on the target desirable and commercially viable in a clinical setting?
+- What are advantages and disadvantages of different therapeutic modalities (antibodies, small molecules, antisense oligonucleotides, PROTACs, molecular glue, peptide macrocycles, and so on) for tackling the target?
+
+- Alternative indications:
+- Describe alternative indication for modulators of the target and explain why.
+
+
+"""
+
+
+
+
+llm = ChatOpenAI(model="gpt-4o", temperature=0)
 embedding_model = OpenAIEmbeddings()
 
 def _set_if_undefined(var: str) -> None:
@@ -220,18 +382,20 @@ class Reflection(BaseModel):
 
 
 class AnswerQuestion(BaseModel):
-    """Provide an answer, reflection, and then follow up with search queries to improve the answer."""
-    answer: str = Field(description="You are a AI assistant with a background in drug discovery and specialise in writing scientific rationales for given targets and diseases, you cite your work based on the retrieved pubmed results.")
+    """Provide an answer, each paragraph must have a reference from search results, reflection, and then follow up with search queries to improve the answer. Provide a detailed summary of relevant search"""
+    answer: str = Field(description=""""You are a AI assistant with a background in drug discovery and specialise in writing scientific rationales for given targets and diseases, you cite your work based on the retrieved pubmed results at the end of relevant sentence as follows:
+                        [Harold et al, Pubmed ID].""")
+    
     reflection: Reflection = Field(description="Your reflection on the initial answer.")
+
     # best_query: str = Field(description="The best selected search query")
     search_queries: list[str] = Field(
-        description="""#Generate ONE diverse search QUERY using advanced search operators to
+        description="""Generate ONE diverse search QUERY using advanced search operators to
           improve the answer and bring back relevant results - this will be used in pubmed central so make it as relevant as possible 
         ##use this as an example - "BACE1" AND "Alzheimer's disease" AND ("Notch signaling" OR "GSEC development" OR "drug discovery").
-        ###The search query should be related to different aspects of the target in Alzheimer's disease. 
-        Ensure each query focuses on a distinct aspect to broaden the search scope."""
-    ),
-    search_results: str = Field(description="A summary of relevant search results with details and examples for use in the answer.")
+        ###The search query should be related to different aspects of the prompt """),
+    
+    search_results: str = Field(description="A summary of relevant search_results with quantitative details and examples for use in the answer, add in metadata.")
 class AnswerQuestion(BaseModel):
     answer: str = Field(description="Your answer here")
     reflection: Reflection = Field(description="Your reflection on the initial answer")
@@ -292,18 +456,15 @@ actor_prompt_template = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            """You are an AI assistant specializing in Alzheimer's disease and drug discovery research. Your task is to analyze scientific papers and provide a comprehensive response.
+            """You are an AI assistant specializing in disease and drug discovery research. Your task is to analyze scientific papers and provide a comprehensive response.
 1. You will receive a scientific paper in this format:
 - content: The paper  content. Use this to improve your answer each time.
 - metadata: Paper ID, authors, year, and journal.
-
-When using information from metadata, cite them as [Paper ID, Author] at the end of the relevant sentence.
-
+When using information from metadata, cite them as [Paper ID, Author] at the end of the relevant sentence. You cite every relevant sentence otherwise it will be considered plagiarism.
 2. Suggest search queries for further research, using advanced techniques.
-
 Example query: "BACE1" AND "Alzheimer's disease" AND ("Notch signaling" OR "GSEC development" OR "drug discovery")
-
-Maintain a critical perspective and provide accurate, up-to-date information. Continuously refine your answer with each iteration.""",
+Maintain a critical perspective and provide accurate, up-to-date information. Continuously refine your answer with each iteration.
+3. Your response should be detailed, structured, and supported by references with a full reference list at the end.""",
 
         ),
         MessagesPlaceholder(variable_name="messages"),
@@ -326,7 +487,7 @@ first_responder = ResponderWithRetries(
     runnable=initial_answer_chain, validator=validator
 )
 
-initial = first_responder.respond([HumanMessage(content=clinical_target_prompt)])
+initial = first_responder.respond([HumanMessage(content=Challenges_prompt_ALPHA)])
 
 
 from typing import Optional
@@ -348,7 +509,7 @@ revise_instructions = """ you are an AI assistant specializing in scientific lit
 7. Ensure all major claims are supported by at least one reference, citing sources using Harvard Style.
 8. After revising, reflect on how the new information has changed or enhanced your understanding.
 9. Identify any remaining gaps in your knowledge or areas of uncertainty.
-10. Suggest ONE searc query using search notation that could address these gaps or uncertainties in the next iteration - be flexible by using OR but specific using shrot keywords with quotes.
+10. Suggest ONE search query using search notation that could address these gaps or uncertainties in the next iteration - be flexible by using OR but specific using shrot keywords with quotes.
 
 Your goal is to continuously refine and improve your answer, making it more comprehensive, accurate, and up-to-date with each revision. 
 Remember to maintain a critical and analytical perspective throughout this process. """
@@ -390,7 +551,7 @@ search_queries = []
 
 revised = revisor.respond(
     [
-        HumanMessage(content=working_hypothesis_prompt),
+        HumanMessage(content=Challenges_prompt_ALPHA),
         initial,
         ToolMessage(
             tool_call_id=initial.tool_calls[0]["id"],
@@ -438,14 +599,8 @@ tool_node = ToolNode(
     ]
 )
 
-from typing import Literal
-from langgraph.graph.message import add_messages
-from typing import Annotated
-from langgraph.graph import END, MessageGraph, START
-from typing_extensions import TypedDict
 
-
-MAX_ITERATIONS = 5
+MAX_ITERATIONS = 7
 builder = MessageGraph()
 
 class State(TypedDict):
@@ -489,7 +644,7 @@ graph = builder.compile()
 
 
 events = graph.stream(
-    [HumanMessage(content=working_hypothesis_prompt)],
+    [HumanMessage(content=Challenges_prompt_ALPHA)],
     stream_mode="values",
 )
 for i, step in enumerate(events):
