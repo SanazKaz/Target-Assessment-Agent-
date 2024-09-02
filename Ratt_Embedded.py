@@ -1,50 +1,66 @@
-from langchain_openai import ChatOpenAI
-import os
-from dotenv import load_dotenv
-from openai import OpenAI
-import nest_asyncio
-nest_asyncio.apply()
-import asyncio  # Add this import
-import os
-from dotenv import load_dotenv
-import json
-from APIs.combinedapi import PubMedProcessor
-import datetime
 from IPython.display import display, HTML
 from difflib import unified_diff
+from langchain_openai import ChatOpenAI
+from openai import OpenAI
+import os
+import openai
+from dotenv import load_dotenv
+import json
+import datetime
 import weave 
 import weave
-from weave import Evaluation
 import json
-import aiofiles
-from difflib import unified_diff
-import html
+from multiprocessing import Process, Queue
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_openai import OpenAIEmbeddings
+from langchain.schema import Document
+from llama_index.core.node_parser import SentenceWindowNodeParser
+from llama_index.core.postprocessor import MetadataReplacementPostProcessor
+from llama_index.llms.openai import OpenAI
+from llama_index.core import Settings
+from langchain_community.document_loaders import PyPDFLoader
+from llama_index.core import Document, VectorStoreIndex, Settings
+from langchain_openai import OpenAIEmbeddings, OpenAI
+from llama_index.core.node_parser import SentenceWindowNodeParser
+from llama_index.core.postprocessor import MetadataReplacementPostProcessor
+from llama_index.llms.openai import OpenAI
+from llama_index.core import (
+    load_index_from_storage,
+    StorageContext
+)
+query_engine = None
+
+num_agents = 1 
+num_steps = 3
+final_output_mode = 'final_step_only'
+
+
+# Directory containing your PDFs
+pdf_directory = "/Users/sanazkazeminia/Documents/LLM_Agent/Embedded_Articles/"
+
+all_docs = []
+
+# Load all PDFs from the directory
+# Directory containing your PDFs
+pdf_directory = "/Users/sanazkazeminia/Documents/LLM_Agent/Embedded_Articles/"
+
+# Check if persisted index exists
 
 
 
-
-
-
-
-openai_client = OpenAI(api_key="OPENAI_API_KEY")
-load_dotenv()
-llm = ChatOpenAI()
-llm = ChatOpenAI(api_key="OPENAI_API_KEY" )
-
-
-chat_prompt = "You are ChatGPT, a large language model trained by OpenAI, based on the GPT-4 architecture and you cite the papers you use in your answers using Harvard Style."
+chat_prompt = "You are a highly trained scientist and an expert in scientific writing you cite the papers you use in your answers using the name of the PDF provided to you."
 
 working_hypothesis_prompt = """ 
-# Scientific Rationale for 5-alpha reductase  in Huntington's Disease
+# Scientific Rationale gamma secretase in Alzheimer's Disease
 
 
 ## Target Information 
 ### Develop a scientific rationale for the following:
-                             
-    **Given target:**  5-alpa reductase
-    **Given disease:** Huntington's disease
-    **Given mode of action:** Inhibition of 5-alpha reductase can promote neuronal survival and reduce mutant huntingtin protein aggregation
-
+                            
+    **Given target:** gamma secretase
+    **Given disease:** Alzheimer's disease
+    **Given mode of action:** Inhibition of gamma secretase can reduce the production of amyloid-beta peptides and prevent the formation of amyloid plaques in the brain of Alzheimer's disease patients.
+    
 ## Task 1: Develop Scientific Rationale
 
 ### Working Hypothesis
@@ -57,18 +73,16 @@ working_hypothesis_prompt = """
 
 """
 
-clinical_target_prompt = """ #Clinical Target Rationale for 5-alpha reductase in Huntington's Disease
-
+clinical_target_prompt = """ #Clinical Target Rationale for gamma sec in Huntington's Disease
 
 ## Target Information 
 ### Develop a scientific rationale for the following:
-                           
-    **Given target:** 5-alpa reductase
-    **Given disease:** Huntington's disease
-    **Given mode of action:** Inhibition of 5-alpha reductase can promote neuronal survival and reduce mutant huntingtin protein aggregation
-
-
- ### Clinical target rationale:
+                            
+    **Given target:** gamma secretase
+    **Given disease:** Alzheimer's disease
+    **Given mode of action:** Inhibition of gamma secretase can reduce the production of amyloid-beta peptides and prevent the formation of amyloid plaques in the brain of Alzheimer's disease patients.
+    
+### Clinical target rationale:
     - How relevant is the target location to the disease biology?
     - How is the target expression altered in human disease?
     - How is the target involved in the physiological process relevant to the disease?
@@ -77,16 +91,17 @@ clinical_target_prompt = """ #Clinical Target Rationale for 5-alpha reductase in
     - Describe the evidence provided in clinics or by tools acting on the pathway where the target is involved.
     - Which kind of target modulation is required to treat the disease? """
 
+
 Challenges_prompt_1 = """ 
 #Challenges for the drug discovery program related to 5-alpha reductase  in Huntington's disease
-                           
+                        
 ## Target Information 
 ### Develop a scientific rationale for the following:
-                           
-    **Given target:**  5-alpa reductase
-    **Given disease:** Huntington's disease
-    **Given mode of action:** Inhibition of 5-alpha reductase can promote neuronal survival and reduce mutant huntingtin protein aggregation
-
+                            
+    **Given target:** gamma secretase
+    **Given disease:** Alzheimer's disease
+    **Given mode of action:** Inhibition of gamma secretase can reduce the production of amyloid-beta peptides and prevent the formation of amyloid plaques in the brain of Alzheimer's disease patients.
+    
 
 ### Challenges:
 - Check the following idea for details on small molecule compounds: Developing small molecule modulators or inhibitors of gamma secretase for Alzheimer's disease treatment.
@@ -98,14 +113,14 @@ Challenges_prompt_1 = """
 Challenges_prompt_2 = """
 
 #Challenges for the drug discovery program related to 5-alpha reductase  in Huntington's disease
-                           
+                        
 ## Target Information 
 ### Develop a scientific rationale for the following:
-                           
-    **Given target:**  5-alpa reductase
-    **Given disease:** Huntington's disease
-    **Given mode of action:** Inhibition of 5-alpha reductase can promote neuronal survival and reduce mutant huntingtin protein aggregation
-
+                            
+    **Given target:** gamma secretase
+    **Given disease:** Alzheimer's disease
+    **Given mode of action:** Inhibition of gamma secretase can reduce the production of amyloid-beta peptides and prevent the formation of amyloid plaques in the brain of Alzheimer's disease patients.
+    
 - Which patients would respond the therapy?
 - Is the proposed mode of action on the target desirable and commercially viable in a clinical setting?
 - What are advantages and disadvantages of different therapeutic modalities (antibodies, small molecules, antisense oligonucleotides, PROTACs, molecular glue, peptide macrocycles, and so on) for tackling the target?
@@ -117,270 +132,56 @@ Challenges_prompt_2 = """
 """
 all_prompts = [working_hypothesis_prompt, clinical_target_prompt, Challenges_prompt_1, Challenges_prompt_2]
 
-import json
-from typing import Dict, Any
-import openai
-import asyncio
-from typing import Dict, Any
+newline_char = '\n'
+def run_with_timeout(func, timeout, *args, **kwargs):
+    q = Queue()  # Create a Queue object for interprocess communication
+    # Create a process to execute the given function, passing the Queue and other *args, **kwargs as parameters
+    p = Process(target=func, args=(q, *args), kwargs=kwargs)
+    p.start()
+    # Wait for the process to complete or time out
+    p.join(timeout)
+    if p.is_alive():
+        print(f"{datetime.now()} [INFO] Function {str(func)} execution timed out ({timeout}s), terminating process...")
+        p.terminate()  # Terminate the process
+        p.join()  # Ensure the process has been terminated
+        result = None  # In case of a timeout, we do not have a result
+    else:
+        print(f"{datetime.now()} [INFO] Function {str(func)} completed successfully")
+        result = q.get()  # Retrieve the result from the queue
+    return result
 
 
-async def pubmed_paperqa(query: str) -> Dict[str, Any]:
-    """ Searches PubmedCentral for papers using a query
-    and returns the most relevant chunks using paperQA"""
+def get_query_wrapper(q, question, answer):
+    result = get_query(question, answer)
+    q.put(result)
 
-    max_attempts = 2
-    max_results: int = 4
-    pubmed_query = query
-    doc_query = query
-    email = "sanazkazemi@hotmail.com"
-    print(f"pubmed_paperqa called with query: {query}, max_results: {max_results}")
-
-    
-    pubmed_instance = PubMedProcessor(email)
-
-    # some error handeling in case the API call fails the algorithm will continue.
-    results_dict = {}
-    for attempt in range(max_attempts):
-        try:
-            results_dict = await pubmed_instance.full_process(pubmed_query, doc_query, max_results)
-            break
-        except Exception as e:
-            print(f"Error in attempt {attempt+1}: {e}")
-
-    if results_dict is None:
-        print("All API call attempts failed. Continuing with empty results.")
-        results_dict = {"error": "API calls failed", "results": []}
-
-
-    # saving the refs to file because the LLM cant do it as it edits in paragraphs - has to be manually done
-
-    file_path = 'RATT_refs.json'
-
-    try:
-        if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-            with open(file_path, 'r') as f:
-                existing_data = json.load(f)
-        else:
-            existing_data = []
-    except json.JSONDecodeError:
-        print("Error reading existing data. Starting with empty list.")
-
-        existing_data = []
-
-    existing_data.append(results_dict)
-
-    with open(file_path, 'w') as f:
-        json.dump(existing_data, f, indent=4)
-
-                        
-    return json.dumps(results_dict, indent=4)
-
-# To run this in a Jupyter notebook cell:
-# query = "Alzheimer's disease and gamma secretase"
-# results = await pubmed_paperqa(query)
-# print(results)
-
-
-def generate_diff_html(text1, text2, fromfile='Original', tofile='Modified'):
-    diff = unified_diff(text1.splitlines(keepends=True),
-                        text2.splitlines(keepends=True),
-                        fromfile=fromfile, tofile=tofile, n=3)
-    
-    html_output = ['''
-    <style>
-        .diff-container {
-            font-family: monospace;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            padding: 10px;
-            margin-bottom: 20px;
-        }
-        .diff-header {
-            color: #6c757d;
-            margin-bottom: 10px;
-        }
-        .diff-add {
-            background-color: #e6ffec;
-            color: #24292e;
-        }
-        .diff-sub {
-            background-color: #ffebe9;
-            color: #24292e;
-        }
-        .diff-line {
-            display: block;
-            margin-bottom: 0;
-            padding: 2px 0;
-        }
-        .collapse-button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            border-radius: 4px;
-        }
-        .hidden {
-            display: none;
-        }
-    </style>
-    <div class="diff-container">
-    <button class="collapse-button" onclick="toggleDiff(this)">Collapse/Expand Diff</button>
-    <div class="diff-content">
-    ''']
-    
-    for line in diff:
-        if line.startswith('---') or line.startswith('+++'):
-            html_output.append(f'<div class="diff-header">{html.escape(line)}</div>')
-        elif line.startswith('+'):
-            html_output.append(f'<span class="diff-line diff-add">{html.escape(line)}</span>')
-        elif line.startswith('-'):
-            html_output.append(f'<span class="diff-line diff-sub">{html.escape(line)}</span>')
-        else:
-            html_output.append(f'<span class="diff-line">{html.escape(line)}</span>')
-    
-    html_output.append('''
-    </div>
-    </div>
-    <script>
-    function toggleDiff(button) {
-        var content = button.nextElementSibling;
-        if (content.style.display === "none") {
-            content.style.display = "block";
-            button.textContent = "Collapse Diff";
-        } else {
-            content.style.display = "none";
-            button.textContent = "Expand Diff";
-        }
-    }
-    </script>
-    ''')
-    
-    return ''.join(html_output)
-
-
-
-
-def pick_best_query(queries: list, question: str, answer: str) -> str:
-    """picks the best query from the list of queries"""
-
-    gpt_prompt ="""
-    for the given question and answer, pick the best query 
-    from the list of queries that you think is most relevant especially to the last few sentences of the answer.
-    ## IMPORTANT:
-    Just return the best query. Do not add any additional information.
-    """
-
-    best_query = openai.chat.completions.create(
-
-     model = "gpt-4o-mini",
+def get_query(question, answer):
+    query_prompt = '''
+I want to verify the content correctness of the given question, especially the last sentences.
+Please summarize the content with the corresponding question.
+This summarization will be used as a query to search with Pubmed central to find related knowledge or pages.
+The query should be short but specific to promise retrieval of related knowledge or pages.
+You can also use search syntax to make the query short and clear enough for the search engine to find relevant language data.
+Try to make the query as relevant as possible to the last few sentences in the content.
+**IMPORTANT**
+Just output the query directly. DO NOT add additional explanations or introducement in the answer unless you are asked to.
+'''
+    query = openai.chat.completions.create(
+        model="gpt-4o-mini",
         messages=[
             {
                 "role": "system",
-                "content": "you are a scientific researcher, you are tasked with finding the best query to search for scientific papers on PubMed."            
-        },
+                "content": chat_prompt
+            },
             {
                 "role": "user",
-                "content": f"##Instruction:{gpt_prompt}\n\n###Question: {question}\n\n###Question:{answer}\n\n##Queries: {[queries]}\n\n"
+                "content": f"##Question: {question}\n\n##Content: {answer}\n\n##Instruction: {query_prompt}"
             }
         ],
-        temperature=1 # here you can adjust the temperature to get more or less creative search terms
+        temperature=1.0
     ).choices[0].message.content
+    return query
 
-    return best_query
-
-
-
-
-def get_query(question, answer, num_queries) -> str:
-
-    """Generates queries to search for in Pubmed based on the question"""    
-    query_prompt = """ You are a scientific researcher, 
-                        you are tasked with finding the best query to search 
-                        for scientific papers on PubMed.
-                                                    
-                            I want to verify the content correctness of the given answer especially the last few sentences.
-                            Please summarize the content with the corresponding question.
-                            This summarization will be used as a query to search with Bing search engine.
-                            The query should be short but needs to be specific to promise Bing can find related knowledge or pages.
-                            You can also use search syntax to make the query short and clear enough for the search engine to find relevant language data.
-                            Try to make the query as relevant as possible to the last few setences of the the answer provided.
-                            **IMPORTANT**
-                            Just output the query directly. DO NOT add additional explanations or introducement in the answer unless you are asked to.
-
-                        The following worked very well for me in the past in terms of generating the highest number of results use it as a guide:
-                        ###Example:
-                        "{Target}" AND "{Disease}" AND ("{relevant_keyword}" OR "{relevant_keyword_1} Or "{relevant_keyword_n}")" and so on.
-                        ##IMPORTANT:
-                        Just provide the query. Do not add any additional information.
-                        DO NOT copy the given example"""
-    
-
-    queries = []
-
-    for i in range(num_queries):
-        try:
-            query = openai.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are ChatGPT, a large language model trained by OpenAI, based on the GPT-4 architecture."
-
-                    },
-                    {
-                        "role": "user",
-                        "content": f"##Question: {question}\n\n##Content: {answer}\n\n##Instruction: {query_prompt}"
-                    }
-                ],
-                temperature=1
-            ).choices[0].message.content
-
-            print(f"query {i}: {query}")
-
-        except Exception as e:
-            print(f"error {e}")
-        queries.append(query)
-
-    best_query = pick_best_query(queries,answer, question)
-    print(f"best query: {best_query}")
-
-    return best_query
-
-
-
-
-async def main(question: str, answer, num_queries: int):
-    """Main function to get the best query for the question"""
-    
-    
-    search_query = get_query(question, answer, num_queries)
-    
-    # Remove only the outermost single quotes if they exist otherwise doesnt work - not elegant but works
-    if search_query.startswith("'") and search_query.endswith("'"):
-        cleaned_query = search_query[1:-1]
-    else:
-        cleaned_query = search_query
-    
-    # Replace escaped single quotes with regular single quotes
-    cleaned_query = cleaned_query.replace("\\'", "'")
-    
-    print(f"Cleaned search query: {cleaned_query}")
-    
-    results = await pubmed_paperqa(cleaned_query)
-
-    print(results)  # This is the final output
-
-
-    return results
-
-num_agents = 1 
-num_steps = 3
-final_output_mode = 'final_step_only'
 
 
 def COT_agent(question):
@@ -398,7 +199,7 @@ Just respond to the instruction directly. DO NOT add additional explanations or 
 
     # Loop to generate different initial answers
     COT_draft = openai.chat.completions.create(
-         model="gpt-4o-mini",
+        model="gpt-4o-mini",
             messages=[
                 {
                     "role": "system",
@@ -423,20 +224,25 @@ def split_draft(draft, split_char='\n\n'):
     # print(f"The draft answer has {len(draft_paragraphs)}")
     return draft_paragraphs
 
+def get_revise_answer_wrapper(q, question, answer, content):
+    result = get_revise_answer(question, answer, content)
+    q.put(result)
 
 def get_revise_answer(question, answer, retrieved_data):
     revise_prompt = '''
-I want to revise the answer according to retrieved related text of the question from Pubmed central. You will receive the summary, full text, relevance score to the query, and the full reference. If you use any of the given articles, you **must** reference using the Harvard style with DOI added and add the full citation to the top of the answer. 
-**DO NOT REMOVE OR ALTER ANY CITATIONS FROM THE TOP OF THE ANSWER.**
+I want to revise the answer according to retrieved related text of the question from Pubmed central. You will receive the summary, full text, relevance score to the query, and the full reference. If you use any of the given articles, you **must** reference using the name of the PDF throughout the text - e.g., [PDF_NAME].
+**DO NOT REMOVE OR ALTER ANY CITATIONS ONLY ADD NEW ONES.** 
 You need to check whether the answer is correct.
 If you find some errors in the answer, revise the answer to make it better.
 If you find some necessary details are ignored, add it to make the answer more plausible according to the related text.
 If you find that a part of the answer is correct and does not require any additional details, maintain that part of the answer unchanged. Directly output the original content of that part without any modifications.
 **IMPORTANT**
-Try to keep the structure (multiple paragraphs with its subtitles) in the revised answer and make it more structual for understanding.
+Try to keep the structure (multiple paragraphs with its subtitles) in the revised answer and make it more structural for understanding.
 Split the paragraphs with `\n\n` characters.
-Just output the revised answer directly. DO NOT add additional explanations or annoucement in the revised answer unless you are asked to.
+For each piece of information you use from the retrieved data, cite the source using [SOURCE_ID] at the end of the relevant sentence or paragraph.
+Just output the revised answer directly. DO NOT add additional explanations or announcement in the revised answer unless you are asked to.
 '''
+
     revised_answer = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -457,47 +263,119 @@ Just output the revised answer directly. DO NOT add additional explanations or a
 
 
 
-async def RAG(question, draft_paragraphs):
-    """ args:
-    question: str: the prompt to answer
-    draft_paragraphs: list: the list of paragraphs from the initial n drafts
-    """
+def generate_diff_html(text1, text2):
+    diff = unified_diff(text1.splitlines(keepends=True),
+                        text2.splitlines(keepends=True),
+                        fromfile='text1', tofile='text2')
+def RAG(question, draft_paragraphs):
     answer = ""
+    all_retrieved_data = []
+    for i, p in enumerate(draft_paragraphs):
+        print("=" * 80)
+        print(f"{datetime.now()} [INFO] Processing part {i + 1}/{len(draft_paragraphs)}...")
+        answer += '\n\n' + p
 
-    for i, paragraph in enumerate(draft_paragraphs):
-        answer += '\n\n' + paragraph
+        print(f"{datetime.now()} [INFO] Generating corresponding query...")
+        res = run_with_timeout(get_query_wrapper, 90, question, answer)
+        if not res:
+            print(f"{datetime.now()} [INFO] Skipping subsequent steps...")
+            continue
+        else:
+            query = res
 
-        api_response = await main(question, answer, num_queries=2)  # Now using the entire answer instead of just the paragraph
+        # Using a placeholder for newline character handling in the query
+        newline_char = '\n'
+        query_display = query.replace(newline_char, ' ')
+        print(f">>> {i}/{len(draft_paragraphs)} Query: {query_display}")
+        print(f"{datetime.now()} [INFO] Querying local database...")
 
-        revised_answer = get_revise_answer(question, answer, api_response)  # Using the entire answer
-        if revised_answer != answer:
-            diff_html = generate_diff_html(answer, revised_answer)
+        db_response = query_engine.query(query)
+
+        if not db_response:
+            print(f"{datetime.now()} [INFO] Skipping subsequent steps due to no response...")
+            continue
+
+        # Process the response and extract metadata
+        retrieved_data = []
+        for idx, node in enumerate(db_response.source_nodes):
+            metadata = node.node.metadata
+            source_id = f"SOURCE_{idx+1}"
+            retrieved_data.append({
+                "source_id": source_id,
+                "content": node.node.text,
+                "metadata": metadata
+            })
+        all_retrieved_data.extend(retrieved_data)
+
+        print(f"{datetime.now()} [INFO] Modifying answer based on database content...")
+        res = run_with_timeout(get_revise_answer_wrapper, 90, question, answer, retrieved_data)
+        if not res:
+            print(f"{datetime.now()} [INFO] Skipping subsequent steps...")
+        else:
+            diff_html = generate_diff_html(answer, res)
             display(HTML(diff_html))
-            answer = revised_answer
-        
-        print(f"Completed iteration {i+1}/{len(draft_paragraphs)}")
+            answer = res
+            print(f"{datetime.now()} [INFO] Answer modification completed")
 
-        print('+'* 80 + '\n\n')
-        print(f"RESULT OF PUBMED API:\n{answer}")
-    
+    return answer, all_retrieved_data
+
+def replace_source_ids_with_metadata(answer, retrieved_data):
+    for source in retrieved_data:
+        source_id = source['source_id']
+        metadata = source['metadata']
+        # Create a citation string from the metadata
+        citation = f"(Source: {metadata.get('source', 'Unknown')}, Page: {metadata.get('page', 'N/A')})"
+        # Replace the [SOURCE_ID] placeholder with the citation
+        answer = answer.replace(f"[{source_id}]", citation)
     return answer
 
 
+def split_draft(draft, split_char='\n\n'):
+    # split_char: '\n\n'
+    draft_paragraphs = draft.split(split_char)
+    # print(f"The draft answer has {len(draft_paragraphs)}")
+    return draft_paragraphs
 
-async def get_draft_tot_initial(question: str, num_agents: int):
-    """Generates initial answers from multiple agents for comparison"""
-    draft_prompt = """
-            IMPORTANT:
-            Try to answer this question/instruction with step-by-step thoughts and make the answer more structured.
-            Use `\n\n` to split the answer into several paragraphs.
-            Just respond to the instruction directly. DO NOT add additional explanations or introducement in the answer unless you are asked to.
-            """
+def get_draft(question):
+    # Getting the draft answer
+    draft_prompt = '''
+IMPORTANT:
+Try to answer this question/instruction with step-by-step thoughts and make the answer more structural.
+Use `\n\n` to split the answer into several paragraphs.
+Just respond to the instruction directly. DO NOT add additional explanations or introducement in the answer unless you are asked to.
+'''
+    draft = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": chat_prompt
+            },
+            {
+                "role": "user",
+                "content": f"{question}" + draft_prompt
+            }
+        ],
+        temperature=1.0
+    ).choices[0].message.content
+    return draft
 
-    refine_prompt = """
-            Maintaining *ALL* citations and references and referencing the answers provided by all agents, synthesize a more detailed and comprehensive response by integrating all relevant details from these answers. 
-            Ensure logical coherence and provide ONLY THE MERGED ANSWER AND CITATIONS AS THE OUTPUT, omitting any discussion of the comparison process or analytical thoughts."""
+def get_draft_tot_inital(question, num_agents=3):
 
-    agent_drafts = []
+    draft_prompt = '''
+IMPORTANT:
+Try to answer this question/instruction with step-by-step thoughts and make the answer more structural.
+Use `\n\n` to split the answer into several paragraphs.
+Just respond to the instruction directly. DO NOT add additional explanations or introducement in the answer unless you are asked to.
+'''
+
+    refine_prompt = '''
+Referencing the answers provided by all agents, synthesize a more detailed and comprehensive response by integrating all relevant details from these answers. Ensure logical coherence and provide ONLY THE MERGED ANSWER AS THE OUTPUT, omitting any discussion of the comparison process or analytical thoughts.
+'''
+
+    agents_drafts = []
+
+    # Loop to generate different initial answers
     for i in range(num_agents):
         draft = openai.chat.completions.create(
             model="gpt-4o-mini",
@@ -511,59 +389,67 @@ async def get_draft_tot_initial(question: str, num_agents: int):
                     "content": question + draft_prompt
                 }
             ],
-            temperature=0.5
+            temperature=1.0
         ).choices[0].message.content
-        print(f"####################draft {i}: {draft}########################################")
 
-        print("Processing draft...")
+        print(f"{datetime.now()} [INFO] Processing draft...")
         draft_paragraphs = split_draft(draft)
+        print(f"{datetime.now()} [INFO] Draft split into {len(draft_paragraphs)} parts")
 
-        draft_modified = await RAG(question, draft_paragraphs)
+        # Modify using RAG
+        draft_modified = RAG(question, draft_paragraphs)
 
-        agent_drafts.append(f"Agent{i+1}: {draft_modified}")
+        # Add each generated draft to the list
+        agents_drafts.append(f"Agent{i+1}: {draft_modified}")
 
-        print(f"[INFO] Agent{i + 1}/{num_agents} retrieved draft...")
+        print(f"{datetime.now()} [INFO] Agent{i + 1}/{num_agents} retrieved draft...")
 
-        agent_input = '\n\n'.join(agent_drafts) + '\n\n' + refine_prompt
 
-        final_draft = openai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": chat_prompt
-                },
-                {
-                    "role": "user",
-                    "content": agent_input
-                }
-            ],
-            temperature=0.5
-        ).choices[0].message.content
 
-        print(f"{datetime.now()} - Final draft: {final_draft}")
 
+    # Integrate and process previous answers
+    agents_input = '\n\n'.join(agents_drafts) + '\n\n' + refine_prompt
+
+    # Generate the integrated answer
+    final_draft = openai.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": chat_prompt
+            },
+            {
+                "role": "user",
+                "content": agents_input
+            }
+        ],
+        temperature=1.0
+    ).choices[0].message.content
+
+    print(f"{datetime.now()} [INFO] Retrieved integrated draft...")
 
     return final_draft
 
-# FIX BELOW FUNCTION NOT USING PREVIOUS ANSWER ?? ALSO STRING CHAR LIST WITHIN LIST - SHOULD BE STRING
+def get_draft_tot(question, previous_answer, num_agents=3):
+    # Update the draft answer prompt to include the question and previous answer
+    draft_prompt = f'''
+Base your response on the provided question and the previous answer. Expand the answer by adding more details to enhance its comprehensiveness. Ensure that the expansion maintains logical coherence and enriches the details, making the response more thorough and well-structured.
+Question: {question}
+Previous Answer: {previous_answer}
+IMPORTANT:
+Answer the full question with step-by-step thoughts and make the answer more structural.
+Use `\n\n` to split the answer into several paragraphs.
+Just respond to the instruction directly. DO NOT add additional explanations or introducement in the answer unless you are asked to.
+'''
 
+    refine_prompt = '''
+Referencing the answers provided by all agents, synthesize a more detailed and comprehensive response by integrating all relevant details from these answers. Ensure logical coherence and provide ONLY THE MERGED ANSWER AS THE OUTPUT, omitting any discussion of the comparison process or analytical thoughts.
+'''
 
-async def get_draft_tot(question, previous_answer, num_agents):
-
-    draft_prompt = f""" Base your response on the provided question and the previous answer. Expand the answer by adding more details to enhance its comprehensiveness. Ensure that the expansion maintains logical coherence and enriches the details, making the response more thorough and well-structured.
-        Question: {question}
-        Previous Answer: {previous_answer}
-        IMPORTANT:
-        DO NOT REMOVE ANY CITATIONS OR REFERENCES IN THE ANSWER if you use any citations or references in the answer - you must reference in Harvard style + the DOI in the answer and add the citation to the top of the answer.
-        Answer the full question with step-by-step thoughts and make the answer more structural.
-        Use `\n\n` to split the answer into several paragraphs.
-        Just respond to the instruction directly. DO NOT add additional explanations or introducement in the answer unless you are asked to. """
-
-    refine_prompt = """Maintaining *ALL* citations and references and referencing the answers provided by all agents, synthesize a more detailed and comprehensive response by integrating all relevant details from these answers. 
-            Ensure logical coherence and provide ONLY THE MERGED ANSWER AND CITATIONS AS THE OUTPUT, omitting any discussion of the comparison process or analytical thoughts."""
 
     agents_drafts = []
+
+    # Loop to generate initial different responses
     for i in range(num_agents):
         draft = openai.chat.completions.create(
             model="gpt-4o-mini",
@@ -577,17 +463,25 @@ async def get_draft_tot(question, previous_answer, num_agents):
                     "content": draft_prompt
                 }
             ],
-            temperature=0.5
+            temperature=1.0
         ).choices[0].message.content
 
+        print(f"{datetime.now()} [INFO] Processing draft...")
         draft_paragraphs = split_draft(draft)
+        print(f"{datetime.now()} [INFO] Draft split into {len(draft_paragraphs)} parts")
 
-        draft_modified = await RAG(question, draft_paragraphs)
+        # Modify using RAG
+        draft_modified = RAG(question, draft_paragraphs)
 
-        agents_drafts.append(f"Agent{i+1}: {draft_modified}")
-    
+        # Add each generated draft to the list
+        agents_drafts.append(f"Agent{i + 1}: {draft_modified}")
+
+        print(f"{datetime.now()} [INFO] Agent{i + 1}/{num_agents} retrieved draft...")
+
+    # Integrate and process previous responses
     agents_input = '\n\n'.join(agents_drafts) + '\n\n' + refine_prompt
 
+    # Generate the integrated answer
     final_draft_raw = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -600,24 +494,24 @@ async def get_draft_tot(question, previous_answer, num_agents):
                 "content": agents_input
             }
         ],
-        temperature=0.5
+        temperature=1.0
     ).choices[0].message.content
 
-    print(f"##########Final draft raw #########################: {final_draft_raw}...")
+    print(f"{datetime.now()} [INFO] Retrieved integrated draft...")
 
-    revise_prompt = """
-            Based on the original answer and an additional supplementary answer, generate a response that is richer in detail and logically coherent. MAINTAIN ALL REFERENCES AND CITATIONS IN THE ANSWER. Do not remove ANY citations.
-            Review the original answer:
-        1. If any part of the answer is correct and requires no further details, retain that portion unchanged and output it directly as it is.
-        2. For parts that may be improved or lack necessary details, enhance them by integrating information from the supplementary answer to make the response more comprehensive and accurate, reference and cite the full reference at the top where neccessary.
-        3. If you identify any errors within the answers, correct these errors while ensuring that the revised content remains logically coherent - check this against the retreived articles.
-        Original Answer: {previous_answer}
-        Supplementary Answer: {final_draft_raw}
+    # Merge the integrated answer with the previous answer, prioritizing the previous answer with supplementary details from the new answer
+    revise_prompt = f'''
+Based on the original answer and an additional supplementary answer, generate a response that is richer in detail and logically coherent. Review the original answer:
+1. If any part of the answer is correct and requires no further details, retain that portion unchanged and output it directly as it is.
+2. For parts that may be improved or lack necessary details, enhance them by integrating information from the supplementary answer to make the response more comprehensive and accurate.
+3. If you identify any errors within the answers, correct these errors while ensuring that the revised content remains logically coherent.
+Original Answer: {previous_answer}
+Supplementary Answer: {final_draft_raw}
 
-        **IMPORTANT**
-        Ensure the revised answer maintains a structured format with paragraphs and subtitles for better clarity. 
-        Separate the paragraphs with `\n\n` characters. Output only the enhanced answer directly and the references and citations if any, without any extra explanations or announcements unless specifically requested."""
-    
+**IMPORTANT**
+Ensure the revised answer maintains a structured format (multiple paragraphs with subtitles) for better clarity. Separate the paragraphs with `\n\n` characters. Output only the enhanced answer directly, without any extra explanations or announcements unless specifically requested.
+'''
+
     final_draft = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -630,20 +524,17 @@ async def get_draft_tot(question, previous_answer, num_agents):
                 "content": revise_prompt
             }
         ],
-        temperature=0.5
+        temperature=1.0
     ).choices[0].message.content
 
+    # Return the final merged draft
     return final_draft
 
-
-
-
-async def ratt(question, num_agents):
+@weave.op()
+def ratt(question):
     step_num = num_steps
     print(f"{datetime.now()} [INFO] Retrieving Step 1 draft...")
-
-    draft = await get_draft_tot_initial(question,num_agents)
-    
+    draft = get_draft_tot_inital(question, num_agents)
     print(f"{datetime.now()} [INFO] Step 1 draft returned")
     print(f"##################### DRAFT #######################")
     print(draft)
@@ -653,7 +544,8 @@ async def ratt(question, num_agents):
     draft_paragraphs = split_draft(draft)
     print(f"{datetime.now()} [INFO] Draft split into {len(draft_paragraphs)} parts")
 
-    answer_first_state = await RAG(question, draft_paragraphs)
+    answer_first_state, retrieved_data = RAG(question, draft_paragraphs)
+    answer_first_state = replace_source_ids_with_metadata(answer_first_state, retrieved_data)
 
     previous_answer = answer_first_state
 
@@ -661,7 +553,7 @@ async def ratt(question, num_agents):
 
     for iteration in range(1, step_num):
         print(f"{datetime.now()} [INFO] Retrieving Step {iteration + 1} draft...")
-        draft = await get_draft_tot(question, previous_answer, num_agents=num_agents)
+        draft = get_draft_tot(question, previous_answer, num_agents=num_agents)
         print(f"{datetime.now()} [INFO] Step {iteration + 1} draft returned")
         print(f"##################### DRAFT #######################")
         print(draft)
@@ -671,21 +563,22 @@ async def ratt(question, num_agents):
         draft_paragraphs = split_draft(draft)
         print(f"{datetime.now()} [INFO] Draft split into {len(draft_paragraphs)} parts")
 
-        # filtered_paragraphs = filter_paragraphs(draft_paragraphs, iteration, step_num)
-        final_answer = await RAG(question, draft_paragraphs)
+        final_answer, retrieved_data = RAG(question, draft_paragraphs)
+        final_answer = replace_source_ids_with_metadata(final_answer, retrieved_data)
 
         each_step_drafts.append(f"Step {iteration + 1} \n: {final_answer}")
 
         # Update previous_answer for the current iteration's response
         previous_answer = final_answer
 
-    draft_cot = COT_agent(question) # for comparison
+    # Obtain the COT answer for baseline comparison
+    draft_cot = get_draft(question)
 
     if final_output_mode == 'combine_each_step':
         final_draft = '\n\n'.join(each_step_drafts)
-        refine_prompt = f"""
-            Maintaining *ALL* citations and references and referencing the answers provided by all agents, synthesize a more detailed and comprehensive response by integrating all relevant details from these answers. 
-            Ensure logical coherence and provide ONLY THE MERGED ANSWER AND CITATIONS AS THE OUTPUT, omitting any discussion of the comparison process or analytical thoughts."""
+        refine_prompt = f'''
+Referencing the answers provided by each step, synthesize a more detailed and comprehensive response by integrating all relevant details from these answers. Ensure logical coherence and provide ONLY THE MERGED ANSWER AS THE OUTPUT, omitting any discussion of the comparison process or analytical thoughts.
+'''
         previous_answer = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -698,36 +591,121 @@ async def ratt(question, num_agents):
                     "content": final_draft + '\n\n' + refine_prompt
                 }
             ],
-            temperature=0.5 ## ? why
+            temperature=1.0
         ).choices[0].message.content
 
     return draft_cot, previous_answer
 
+def replace_source_ids_with_metadata(answer, retrieved_data):
+    for source in retrieved_data:
+        source_id = source['source_id']
+        metadata = source['metadata']
+        # Create a citation string from the metadata
+        citation = f"(Source: {metadata.get('source', 'Unknown')}, Page: {metadata.get('page', 'N/A')})"
+        # Replace the [SOURCE_ID] placeholder with the citation
+        answer = answer.replace(f"[{source_id}]", citation)
+    return answer
+
+
+def main():
+    global query_engine
+    if os.path.exists("./storage"):
+        print("Loading existing index...")
+        storage_context = StorageContext.from_defaults(persist_dir="./storage")
+        sentence_index = load_index_from_storage(storage_context)
+    else:
+        print("Creating new index...")
+        all_docs = []
+
+        # Load all PDFs from the directory
+        for filename in os.listdir(pdf_directory):
+            if filename.endswith(".pdf"):
+                pdf_path = os.path.join(pdf_directory, filename)
+                
+                loader = PyPDFLoader(pdf_path)
+                all_pages = loader.load()
+                
+                # Select specific pages (first 25 pages in this case)
+                selected_pages = all_pages
+                
+                # Combine the text from the selected pages
+                doc_text = "\n\n".join([page.page_content for page in selected_pages])
+                
+                # Create a Document object with metadata
+                doc = Document(text=doc_text, metadata={"source": filename})
+                
+                all_docs.append(doc)
+
+        print(f"Loaded {len(all_docs)} PDF documents.")
+
+        # Set up the embedding model and Settings
+        embedder = OpenAIEmbeddings(model="text-embedding-3-small")
+        Settings.llm = OpenAI(model="gpt-4o-mini") # Changed from "gpt-4o-mini" to "gpt-4"
+        Settings.embed_model = embedder
+
+        # Create the sentence window node parser with default settings
+        node_parser = SentenceWindowNodeParser.from_defaults(
+            window_size=3,
+            window_metadata_key="window",
+            original_text_metadata_key="original_text",
+        )
+
+        # Process all documents
+        all_nodes = []
+        for doc in all_docs:
+            nodes = node_parser.get_nodes_from_documents([doc])
+            all_nodes.extend(nodes)
+
+        # Create the VectorStoreIndex
+        sentence_index = VectorStoreIndex(all_nodes)
+
+        print("VectorStoreIndex created successfully.")
+
+        # Persist the index to disk
+        sentence_index.storage_context.persist("./storage")
+
+        print("Index persisted to disk.")
+
+    # Now you can use sentence_index for querying, whether it was loaded or newly created
+    query_engine = sentence_index.as_query_engine(
+        similarity_top_k=2,
+        # the target key defaults to `window` to match the node_parser's default
+        node_postprocessors=[
+            MetadataReplacementPostProcessor(target_metadata_key="window")
+        ],
+    )
+
+# # Printing out the values for demonstration
+    print("Number of Agents:", num_agents)
+    print("Number of Steps:", num_steps)
+    print("Final Output Mode:", final_output_mode)
+
+    weave.init(project_name="Ratt_Embedded")
+    answer_cot, answer_ratt = ratt(clinical_target_prompt)
+
+    print(f"COT Answer:{answer_cot}")
+    print(f"RATT Answer:{answer_ratt}")
+
+# window_response = query_engine.query(
+#     "Inhibition of gamma secretase for Alzheimer's disease treatment",
+# )
+# print(window_response)
+
+# for i, node in enumerate(window_response.source_nodes):
+#     print(f"Source {i + 1}:")
+#     print(node.node.metadata['window'])  # or node.node.text, depending on how it's stored
+#     print("\n")
 
 
 
-@weave.op()
-async def main_ratt(question, num_agents, output_file="text_ratt/EGFR/EGFR.json"):
-    answer_cot, answer_ratt = await ratt(question, num_agents)
 
-    result = {
-        "prompt": question,
-        "output_cot": answer_cot, 
-        "output_ratt": answer_ratt
-    }
 
-    # Write the result to a file
-    async with aiofiles.open(output_file, mode='a') as f:
-        await f.write(json.dumps(result) + "\n")
-
-    return result
-
-    
-weave.init('output_ratt_EGFR')
-result = asyncio.run(main_ratt("What is the role of EGFR in cancer?", num_agents=1))
-
-# weave.init('output_ratt_bace')
-# for prompt in all_prompts:
-#     print(f"**************************{prompt}****************************")
-#     results = asyncio.run(main_ratt(prompt, num_agents=1))
+if __name__ == '__main__':
+    print("Script is running...")
+    try:
+        main()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        import traceback
+        traceback.print_exc()
 
