@@ -30,23 +30,19 @@ from llama_index.core import (
 )
 query_engine = None
 
-num_agents = 1 
+num_agents = 1
 num_steps = 3
 final_output_mode = 'final_step_only'
 
 
 # Directory containing your PDFs
-pdf_directory = "/Users/sanazkazeminia/Documents/LLM_Agent/Embedded_Articles/"
+pdf_directory = "/Users/sanazkazeminia/Documents/LLM_Agent/new_set_articles"
 
+# for storing th pdfs
 all_docs = []
 
-# Load all PDFs from the directory
-# Directory containing your PDFs
-pdf_directory = "/Users/sanazkazeminia/Documents/LLM_Agent/Embedded_Articles/"
 
-# Check if persisted index exists
-
-
+# all prompts single and combined
 
 chat_prompt = "You are a highly trained scientist and an expert in scientific writing you cite the papers you use in your answers using the name of the PDF provided to you."
 
@@ -73,7 +69,7 @@ working_hypothesis_prompt = """
 
 """
 
-clinical_target_prompt = """ #Clinical Target Rationale for gamma sec in Huntington's Disease
+clinical_target_prompt = """ #Clinical Target Rationale for gamma sec in Alzheimer's Disease
 
 ## Target Information 
 ### Develop a scientific rationale for the following:
@@ -93,7 +89,7 @@ clinical_target_prompt = """ #Clinical Target Rationale for gamma sec in Hunting
 
 
 Challenges_prompt_1 = """ 
-#Challenges for the drug discovery program related to 5-alpha reductase  in Huntington's disease
+#Challenges for the drug discovery program related to gamma secretase in Alzheimer's disease
                         
 ## Target Information 
 ### Develop a scientific rationale for the following:
@@ -112,7 +108,7 @@ Challenges_prompt_1 = """
 """
 Challenges_prompt_2 = """
 
-#Challenges for the drug discovery program related to 5-alpha reductase  in Huntington's disease
+#Challenges for the drug discovery program related to gamma secretase in Alzheimer's disease
                         
 ## Target Information 
 ### Develop a scientific rationale for the following:
@@ -130,7 +126,55 @@ Challenges_prompt_2 = """
 
 
 """
-all_prompts = [working_hypothesis_prompt, clinical_target_prompt, Challenges_prompt_1, Challenges_prompt_2]
+
+task2_prompt = """ Task 2: Develop a target assessment strategy for gamma secretase in Alzeheimer's disease in maximal 500 words.
+## Target Information 
+                           
+    **Given target:**  gamma secretase
+    **Given disease:** Alzheimer's disease
+    **Given mode of action:** Inhibition of gamma secretase can reduce amyloid beta production and aggregation
+
+
+Outline a 1-year Target Assessment (TA) to Lead Identification (LI) plan. Describe High Level TA-LI plans.
+- Make an emphasis on key inflection points that will inform the feasibility of the project. 
+- Address status of in-vitro platforms, translational in vivo models (mechanistic models, not necessarily so called 'disease models')
+  and describe what needs to be established. Elaborate on tractability and major challenges for advancement in a drug discovery portfolio.
+- Discuss potential biomarkers and readouts for efficacy and target engagement.
+"""
+# this prompt is far too long - doubt it will lead to a good answer
+safety_prompt = """Task 3: Safety assessment
+
+## Target Information 
+### Develop a scientific rationale for the following:
+                           
+    **Given target:**  gamma secretase
+    **Given disease:** Alzheimer's disease
+    **Given mode of action:** Inhibition of gamma secretase can reduce amyloid beta production and aggregation
+
+
+
+- Does the target show bias towards expression in the desired organ (e.g. CNS)?
+- Is it specifically expressed in the organ (e.g. brain)?
+- Are there disease specific expression databases?
+- Are there tissue-selective isoforms of the target?
+- Are there condition-specific isoforms of the target?
+- What regulates the alternative splicing that makes one isoform versus the other?
+- How large is the expression of the target in the mouse model intended for in vivo tests?
+- Is major phenotype reported in target knockouts and/or expression of rodent models?
+- Are there published differences in expression between human and rodent models.
+- What are the species differences that could be used to interpret rodent safety data on the target?
+- What are the peripherial safety risks (oncogensis)?
+- Can the modulation of the target promote tumor formation?
+- Is there a way to assess on-target safety concerns?
+- What are the safety concerns in case of exaggerated pharmacology?
+- Will it disrupt cellular functions (e.g. endosomes, lysosomes, nuclear, mitochondrial) function with all its safety liability?
+- How large is the risk for immunogenicity (related to biologics/antibody based approaches)?
+- If the target is an enzyme, do polymorphisms in the human gene alter the protein enzyme activity?
+ """
+
+all_prompts = [working_hypothesis_prompt, clinical_target_prompt, Challenges_prompt_1, Challenges_prompt_2, task2_prompt, safety_prompt]
+
+
 
 newline_char = '\n'
 def run_with_timeout(func, timeout, *args, **kwargs):
@@ -178,7 +222,7 @@ Just output the query directly. DO NOT add additional explanations or introducem
                 "content": f"##Question: {question}\n\n##Content: {answer}\n\n##Instruction: {query_prompt}"
             }
         ],
-        temperature=1.0
+        temperature=0.5
     ).choices[0].message.content
     return query
 
@@ -239,7 +283,7 @@ If you find that a part of the answer is correct and does not require any additi
 **IMPORTANT**
 Try to keep the structure (multiple paragraphs with its subtitles) in the revised answer and make it more structural for understanding.
 Split the paragraphs with `\n\n` characters.
-For each piece of information you use from the retrieved data, cite the source using [SOURCE_ID] at the end of the relevant sentence or paragraph.
+For each piece of information you use from the retrieved data, cite the source at the end of the relevant sentence or paragraph.
 Just output the revised answer directly. DO NOT add additional explanations or announcement in the revised answer unless you are asked to.
 '''
 
@@ -300,11 +344,13 @@ def RAG(question, draft_paragraphs):
         for idx, node in enumerate(db_response.source_nodes):
             metadata = node.node.metadata
             source_id = f"SOURCE_{idx+1}"
+            print(f"{datetime.now()} ############[INFO] Retrieved source {node.node.text} from source id {source_id} ########")
             retrieved_data.append({
                 "source_id": source_id,
                 "content": node.node.text,
                 "metadata": metadata
             })
+            
         all_retrieved_data.extend(retrieved_data)
 
         print(f"{datetime.now()} [INFO] Modifying answer based on database content...")
@@ -356,7 +402,7 @@ Just respond to the instruction directly. DO NOT add additional explanations or 
                 "content": f"{question}" + draft_prompt
             }
         ],
-        temperature=1.0
+        temperature=0.5
     ).choices[0].message.content
     return draft
 
@@ -389,7 +435,7 @@ Referencing the answers provided by all agents, synthesize a more detailed and c
                     "content": question + draft_prompt
                 }
             ],
-            temperature=1.0
+            temperature=0.5
         ).choices[0].message.content
 
         print(f"{datetime.now()} [INFO] Processing draft...")
@@ -423,7 +469,7 @@ Referencing the answers provided by all agents, synthesize a more detailed and c
                 "content": agents_input
             }
         ],
-        temperature=1.0
+        temperature=0.5
     ).choices[0].message.content
 
     print(f"{datetime.now()} [INFO] Retrieved integrated draft...")
@@ -463,7 +509,7 @@ Referencing the answers provided by all agents, synthesize a more detailed and c
                     "content": draft_prompt
                 }
             ],
-            temperature=1.0
+            temperature=0.5
         ).choices[0].message.content
 
         print(f"{datetime.now()} [INFO] Processing draft...")
@@ -494,7 +540,7 @@ Referencing the answers provided by all agents, synthesize a more detailed and c
                 "content": agents_input
             }
         ],
-        temperature=1.0
+        temperature=0.5
     ).choices[0].message.content
 
     print(f"{datetime.now()} [INFO] Retrieved integrated draft...")
@@ -524,7 +570,7 @@ Ensure the revised answer maintains a structured format (multiple paragraphs wit
                 "content": revise_prompt
             }
         ],
-        temperature=1.0
+        temperature=0.5
     ).choices[0].message.content
 
     # Return the final merged draft
@@ -591,7 +637,7 @@ Referencing the answers provided by each step, synthesize a more detailed and co
                     "content": final_draft + '\n\n' + refine_prompt
                 }
             ],
-            temperature=1.0
+            temperature=0.5
         ).choices[0].message.content
 
     return draft_cot, previous_answer
@@ -609,54 +655,52 @@ def replace_source_ids_with_metadata(answer, retrieved_data):
 
 def main():
     global query_engine
-    if os.path.exists("./storage"):
+    if os.path.exists("./storage_enhanced"): # Check if the index has already been created
         print("Loading existing index...")
-        storage_context = StorageContext.from_defaults(persist_dir="./storage")
+        storage_context = StorageContext.from_defaults(persist_dir="./storage_enhanced")
         sentence_index = load_index_from_storage(storage_context)
     else:
         print("Creating new index...")
         all_docs = []
 
-        # Load all PDFs from the directory
+            # Load all PDFs from the directory
         for filename in os.listdir(pdf_directory):
-            if filename.endswith(".pdf"):
-                pdf_path = os.path.join(pdf_directory, filename)
-                
-                loader = PyPDFLoader(pdf_path)
-                all_pages = loader.load()
-                
-                # Select specific pages (first 25 pages in this case)
-                selected_pages = all_pages
-                
-                # Combine the text from the selected pages
-                doc_text = "\n\n".join([page.page_content for page in selected_pages])
-                
-                # Create a Document object with metadata
-                doc = Document(text=doc_text, metadata={"source": filename})
-                
-                all_docs.append(doc)
+                if filename.endswith(".pdf"):
+                    pdf_path = os.path.join(pdf_directory, filename)
+                    
+                    loader = PyPDFLoader(pdf_path)
+                    all_pages = loader.load()
+                                    
+                    # Combine the text from the selected pages
+                    doc_text = "\n\n".join([page.page_content for page in all_pages])
+                    
+                    # Create a Document object with metadata
+                    doc = Document(text=doc_text, metadata={"source": filename})
+                    print(f"Loaded PDF document: {filename}")
+                    
+                    all_docs.append(doc)
 
         print(f"Loaded {len(all_docs)} PDF documents.")
 
         # Set up the embedding model and Settings
         embedder = OpenAIEmbeddings(model="text-embedding-3-small")
-        Settings.llm = OpenAI(model="gpt-4o-mini") # Changed from "gpt-4o-mini" to "gpt-4"
+        Settings.llm = OpenAI(model="gpt-4o-mini") 
         Settings.embed_model = embedder
 
-        # Create the sentence window node parser with default settings
+            # Create the sentence window node parser with default settings
         node_parser = SentenceWindowNodeParser.from_defaults(
-            window_size=3,
-            window_metadata_key="window",
-            original_text_metadata_key="original_text",
-        )
+                window_size=3,
+                window_metadata_key="window",
+                original_text_metadata_key="original_text",
+            )
 
-        # Process all documents
+            # Process all documents
         all_nodes = []
         for doc in all_docs:
-            nodes = node_parser.get_nodes_from_documents([doc])
-            all_nodes.extend(nodes)
+                nodes = node_parser.get_nodes_from_documents([doc])
+                all_nodes.extend(nodes)
 
-        # Create the VectorStoreIndex
+            # Create the VectorStoreIndex
         sentence_index = VectorStoreIndex(all_nodes)
 
         print("VectorStoreIndex created successfully.")
@@ -666,35 +710,35 @@ def main():
 
         print("Index persisted to disk.")
 
-    # Now you can use sentence_index for querying, whether it was loaded or newly created
+        # Now you can use sentence_index for querying, whether it was loaded or newly created
     query_engine = sentence_index.as_query_engine(
-        similarity_top_k=2,
+        similarity_top_k=4,
         # the target key defaults to `window` to match the node_parser's default
         node_postprocessors=[
             MetadataReplacementPostProcessor(target_metadata_key="window")
         ],
     )
 
-# # Printing out the values for demonstration
+    # # Printing out the values for demonstration
     print("Number of Agents:", num_agents)
     print("Number of Steps:", num_steps)
     print("Final Output Mode:", final_output_mode)
 
-    weave.init(project_name="Ratt_Embedded")
-    answer_cot, answer_ratt = ratt(clinical_target_prompt)
+    weave.init(project_name="Ratt_Embedded_Enhanced")
+    answer_cot, answer_ratt = ratt(task2_prompt)
 
     print(f"COT Answer:{answer_cot}")
     print(f"RATT Answer:{answer_ratt}")
 
-# window_response = query_engine.query(
-#     "Inhibition of gamma secretase for Alzheimer's disease treatment",
-# )
-# print(window_response)
+    # window_response = query_engine.query(
+    #     "Inhibition of gamma secretase for Alzheimer's disease treatment",
+    # )
+    # print(window_response)
 
-# for i, node in enumerate(window_response.source_nodes):
-#     print(f"Source {i + 1}:")
-#     print(node.node.metadata['window'])  # or node.node.text, depending on how it's stored
-#     print("\n")
+    # for i, node in enumerate(window_response.source_nodes):
+    #     print(f"Source {i + 1}:")
+    #     print(node.node.metadata['window'])  # or node.node.text, depending on how it's stored
+    #     print("\n")
 
 
 
